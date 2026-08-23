@@ -4,6 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Modèle de Tableau de Bord — Simple &amp; Visuel</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" href="icons/icon-192.png">
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+    <meta name="theme-color" content="#000000">
     <style>
         .viz-root {
             --brand: #ff7900;
@@ -292,6 +296,9 @@
 </footer>
 
 <script>
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+}
 (function () {
     const editorBody = document.getElementById('editorBody');
     const addRowBtn = document.getElementById('addRowBtn');
