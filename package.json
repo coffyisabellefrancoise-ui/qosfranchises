@@ -1,0 +1,10 @@
+{
+  "name": "traducteur-audio-saas",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Backend (fonctions Netlify) pour l'abonnement au Traducteur Audio/Vidéo EN->FR",
+  "dependencies": {
+    "stripe": "^14.25.0",
+    "@supabase/supabase-js": "^2.39.7"
+  }
+}
