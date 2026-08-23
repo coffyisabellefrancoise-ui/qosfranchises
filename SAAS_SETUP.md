@@ -1,7 +1,19 @@
 # Mise en place du SaaS — Traducteur Audio/Vidéo EN → FR
 
-Cette app est maintenant protégée par un compte + un abonnement payant.
-Personne ne peut utiliser `traduction-audio.html` sans être connecté ET abonné.
+Par défaut, `traduction-audio.html` tourne en **mode libre, sans compte** — utile
+pour tester l'outil tout de suite. Le compte + abonnement payant ne s'active
+QUE lorsque vous renseignez de vraies valeurs Supabase (voir ci-dessous) :
+tant que `SUPABASE_URL` contient encore `YOUR-PROJECT`, la vérification est
+automatiquement désactivée.
+
+⚠️ Important : `traduction-audio.html` contient sa propre configuration Supabase
+**en dur, directement dans le fichier** (pas d'import de `supabase-config.js`) —
+un fichier ouvert en double-clic (`file://`) ne peut pas charger un module local
+séparé, ce qui faisait planter toute la page auparavant. Éditez donc les
+constantes `SUPABASE_URL` / `SUPABASE_ANON_KEY` en haut du `<script type="module">`
+de `traduction-audio.html` lui-même pour activer la protection. `login.html` et
+`pricing.html`, eux, continuent d'utiliser `supabase-config.js` (ils sont conçus
+pour être servis par un vrai serveur/hébergeur comme Netlify, pas ouverts en local).
 
 ## Ce qu'il vous reste à faire (comptes gratuits à créer)
 
@@ -10,8 +22,9 @@ Personne ne peut utiliser `traduction-audio.html` sans être connecté ET abonn�
 2. Allez dans **SQL Editor** et exécutez le contenu de `supabase-schema.sql`
    (crée la table `profiles` qui stocke qui est abonné).
 3. Allez dans **Project Settings > API** et copiez :
-   - `Project URL` → collez-le dans `supabase-config.js` (`SUPABASE_URL`)
-   - `anon public key` → collez-le dans `supabase-config.js` (`SUPABASE_ANON_KEY`)
+   - `Project URL` → collez-le dans `supabase-config.js` **et** dans les constantes
+     en haut du script de `traduction-audio.html` (`SUPABASE_URL`)
+   - `anon public key` → idem (`SUPABASE_ANON_KEY`)
    - `service_role key` → à garder secret, à mettre dans les variables d'environnement Netlify (`SUPABASE_SERVICE_ROLE_KEY`)
 
 ### 2. Stripe (paiement) — gratuit, commission uniquement sur les ventes

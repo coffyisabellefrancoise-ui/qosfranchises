@@ -235,7 +235,7 @@
     <h1>🎙️ TRADUCTEUR AUDIO / VIDÉO — Anglais → votre langue</h1>
     <p>Transcription, traduction (20+ langues) et doublage vocal, 100% dans le navigateur</p>
     <a href="index.html">&larr; Retour au Dashboard Qualité</a>
-    &nbsp;|&nbsp;
+    <span id="logoutSep">&nbsp;|&nbsp;</span>
     <a href="#" id="logoutLink">Se déconnecter</a>
 </header>
 
@@ -350,36 +350,52 @@
 
 <script type="module">
 import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2';
-import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from './supabase-config.js';
 
 env.allowLocalModels = false;
 
 // --- Contrôle d'accès (compte + abonnement actif) ---
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// Configuration Supabase EN DUR (pas d'import de fichier local : un import relatif
+// depuis un fichier ouvert directement en double-clic (file://) est bloqué par les
+// navigateurs, ce qui empêchait TOUT le script de démarrer). Tant que ces valeurs
+// restent des placeholders, l'outil tourne en mode libre (sans compte) pour pouvoir
+// être testé immédiatement. Remplacez-les par vos vraies valeurs Supabase
+// (voir SAAS_SETUP.md) pour activer la vérification d'abonnement en production.
+const SUPABASE_URL = 'https://YOUR-PROJECT.supabase.co';
+const SUPABASE_ANON_KEY = 'YOUR-ANON-PUBLIC-KEY';
+const AUTH_ENABLED = !SUPABASE_URL.includes('YOUR-PROJECT');
 
-const { data: { session } } = await supabase.auth.getSession();
-if (!session) {
-    window.location.href = 'login.html';
-    throw new Error('Redirection vers la connexion...');
+const logoutLink = document.getElementById('logoutLink');
+
+if (AUTH_ENABLED) {
+    const { createClient } = await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm');
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+        window.location.href = 'login.html';
+        throw new Error('Redirection vers la connexion...');
+    }
+
+    const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('subscribed')
+        .eq('id', session.user.id)
+        .single();
+
+    if (profileError || !profile || !profile.subscribed) {
+        window.location.href = 'pricing.html';
+        throw new Error('Redirection vers la page d\'abonnement...');
+    }
+
+    logoutLink.addEventListener('click', async (e) => {
+        e.preventDefault();
+        await supabase.auth.signOut();
+        window.location.href = 'login.html';
+    });
+} else {
+    logoutLink.style.display = 'none';
+    document.getElementById('logoutSep').style.display = 'none';
 }
-
-const { data: profile, error: profileError } = await supabase
-    .from('profiles')
-    .select('subscribed')
-    .eq('id', session.user.id)
-    .single();
-
-if (profileError || !profile || !profile.subscribed) {
-    window.location.href = 'pricing.html';
-    throw new Error('Redirection vers la page d\'abonnement...');
-}
-
-document.getElementById('logoutLink').addEventListener('click', async (e) => {
-    e.preventDefault();
-    await supabase.auth.signOut();
-    window.location.href = 'login.html';
-});
 
 const QUALITY_MODELS = {
     rapide: 'Xenova/whisper-tiny.en',
