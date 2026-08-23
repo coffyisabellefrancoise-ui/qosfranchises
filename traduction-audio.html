@@ -295,6 +295,19 @@
             </p>
         </div>
 
+        <div class="voice-block" id="videoDubBlock" style="display:none;">
+            <h3>🎬 Vidéo doublée — téléchargeable</h3>
+            <button id="dubVideoBtn" class="secondary" disabled>🎬 Générer la vidéo doublée</button>
+            <button id="dubDownloadBtn" class="secondary" disabled>⬇ Télécharger la vidéo (.webm)</button>
+            <video id="dubVideoPlayer" controls style="display:none; width:100%; margin-top:10px;"></video>
+            <p class="note">
+                Remplace la piste audio d'origine par la voix française générée ci-dessus et produit un fichier
+                vidéo téléchargeable. La génération tourne en temps réel (≈ la durée de la vidéo). La longueur de
+                la traduction parlée diffère souvent de l'audio d'origine : ce n'est pas un doublage synchronisé
+                lèvres/voix comme HeyGen, seulement un remplacement de la bande audio.
+            </p>
+        </div>
+
         <div class="voice-block">
             <h3>🔊 Voix du navigateur — lecture instantanée</h3>
             <select id="voiceSelect"></select><br>
@@ -369,11 +382,16 @@ const aiAudioPlayer = document.getElementById('aiAudioPlayer');
 const voiceSelect = document.getElementById('voiceSelect');
 const speakBtn = document.getElementById('speakBtn');
 const stopBtn = document.getElementById('stopBtn');
+const videoDubBlock = document.getElementById('videoDubBlock');
+const dubVideoBtn = document.getElementById('dubVideoBtn');
+const dubDownloadBtn = document.getElementById('dubDownloadBtn');
+const dubVideoPlayer = document.getElementById('dubVideoPlayer');
 
 let selectedFile = null;
 let transcriber = null;
 let loadedQuality = null;
 let translator = null;
+let currentDubBlob = null;
 let synthesizer = null;
 let currentWavBlob = null;
 
@@ -432,6 +450,12 @@ function onFileSelected() {
     resetLog();
     setProgress(0);
     log(`Fichier prêt : ${selectedFile.name} (${(selectedFile.size / 1024 / 1024).toFixed(2)} Mo)`);
+
+    videoDubBlock.style.display = selectedFile.type.startsWith('video/') ? 'block' : 'none';
+    dubVideoBtn.disabled = true;
+    dubDownloadBtn.disabled = true;
+    dubVideoPlayer.style.display = 'none';
+    currentDubBlob = null;
 }
 
 // --- Extraction / décodage audio ---
@@ -454,22 +478,27 @@ async function extractAudioBufferFromFile(file) {
 
 function extractAudioBlobFromVideo(file) {
     return new Promise((resolve, reject) => {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        const audioCtx = new AudioContextClass();
         const video = document.createElement('video');
         video.src = URL.createObjectURL(file);
-        video.volume = 0;
+        // Muet + capture via Web Audio API : ceci évite le blocage de lecture automatique
+        // des navigateurs (autoplay policy) tout en récupérant quand même les échantillons audio.
+        video.muted = true;
         video.playsInline = true;
 
         video.addEventListener('loadedmetadata', async () => {
             try {
-                const stream = video.captureStream ? video.captureStream() : video.mozCaptureStream();
-                if (!stream) throw new Error("La capture de flux vidéo (captureStream) n'est pas supportée par ce navigateur.");
-                const audioTracks = stream.getAudioTracks();
+                const source = audioCtx.createMediaElementSource(video);
+                const destination = audioCtx.createMediaStreamDestination();
+                source.connect(destination);
+
+                const audioTracks = destination.stream.getAudioTracks();
                 if (!audioTracks.length) {
                     reject(new Error("Aucune piste audio détectée dans cette vidéo."));
                     return;
                 }
-                const audioStream = new MediaStream(audioTracks);
-                const recorder = new MediaRecorder(audioStream);
+                const recorder = new MediaRecorder(destination.stream);
                 const chunks = [];
                 recorder.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
                 recorder.onstop = () => resolve(new Blob(chunks, { type: 'audio/webm' }));
@@ -545,6 +574,10 @@ async function run() {
     aiDownloadBtn.disabled = true;
     aiAudioPlayer.style.display = 'none';
     currentWavBlob = null;
+    dubVideoBtn.disabled = true;
+    dubDownloadBtn.disabled = true;
+    dubVideoPlayer.style.display = 'none';
+    currentDubBlob = null;
     setProgress(5);
 
     try {
@@ -696,6 +729,9 @@ aiVoiceBtn.addEventListener('click', async () => {
         aiAudioPlayer.src = url;
         aiAudioPlayer.style.display = 'block';
         aiDownloadBtn.disabled = false;
+        if (selectedFile && selectedFile.type.startsWith('video/')) {
+            dubVideoBtn.disabled = false;
+        }
         log('Audio français généré avec succès !', 'ok');
     } catch (err) {
         console.error(err);
@@ -711,6 +747,102 @@ aiDownloadBtn.addEventListener('click', () => {
     const a = document.createElement('a');
     a.href = url;
     a.download = 'voix-francaise.wav';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+});
+
+// --- Vidéo doublée (remplace la piste audio par la voix française) ---
+
+async function buildDubbedVideo(videoFile, wavBlob) {
+    const videoUrl = URL.createObjectURL(videoFile);
+    const video = document.createElement('video');
+    video.src = videoUrl;
+    video.muted = true;
+    video.playsInline = true;
+    await new Promise((resolve, reject) => {
+        video.addEventListener('loadedmetadata', resolve, { once: true });
+        video.addEventListener('error', () => reject(new Error("Impossible de charger la vidéo d'origine.")), { once: true });
+    });
+
+    const videoStream = video.captureStream ? video.captureStream() : video.mozCaptureStream();
+    const videoTrack = videoStream && videoStream.getVideoTracks()[0];
+    if (!videoTrack) throw new Error("Impossible de récupérer le flux vidéo (captureStream non supporté).");
+
+    const audioUrl = URL.createObjectURL(wavBlob);
+    const audioEl = document.createElement('audio');
+    audioEl.src = audioUrl;
+    await new Promise((resolve, reject) => {
+        audioEl.addEventListener('loadedmetadata', resolve, { once: true });
+        audioEl.addEventListener('error', () => reject(new Error("Impossible de charger l'audio français.")), { once: true });
+    });
+
+    const audioStream = audioEl.captureStream ? audioEl.captureStream() : audioEl.mozCaptureStream();
+    const audioTrack = audioStream && audioStream.getAudioTracks()[0];
+    if (!audioTrack) throw new Error("Impossible de récupérer la piste audio française (captureStream non supporté).");
+
+    const combined = new MediaStream([videoTrack, audioTrack]);
+    const mimeType = (window.MediaRecorder && MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus'))
+        ? 'video/webm;codecs=vp9,opus'
+        : 'video/webm';
+    const recorder = new MediaRecorder(combined, { mimeType });
+    const chunks = [];
+    recorder.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
+    const stopped = new Promise(resolve => { recorder.onstop = resolve; });
+
+    recorder.start();
+    await Promise.all([video.play(), audioEl.play()]);
+
+    const maxDuration = Math.max(video.duration || 0, audioEl.duration || 0);
+    await new Promise(resolve => {
+        let done = false;
+        const finish = () => { if (!done) { done = true; resolve(); } };
+        video.onended = finish;
+        setTimeout(finish, (isFinite(maxDuration) ? maxDuration : 600) * 1000 + 2000);
+    });
+
+    video.pause();
+    audioEl.pause();
+    recorder.stop();
+    await stopped;
+
+    URL.revokeObjectURL(videoUrl);
+    URL.revokeObjectURL(audioUrl);
+
+    return new Blob(chunks, { type: 'video/webm' });
+}
+
+dubVideoBtn.addEventListener('click', async () => {
+    if (!selectedFile || !currentWavBlob) return;
+
+    dubVideoBtn.disabled = true;
+    dubDownloadBtn.disabled = true;
+    dubVideoPlayer.style.display = 'none';
+    currentDubBlob = null;
+
+    try {
+        log('Génération de la vidéo doublée (lecture en temps réel)...');
+        currentDubBlob = await buildDubbedVideo(selectedFile, currentWavBlob);
+        const url = URL.createObjectURL(currentDubBlob);
+        dubVideoPlayer.src = url;
+        dubVideoPlayer.style.display = 'block';
+        dubDownloadBtn.disabled = false;
+        log('Vidéo doublée générée avec succès !', 'ok');
+    } catch (err) {
+        console.error(err);
+        log(`Erreur lors de la génération de la vidéo doublée : ${err.message || err}`, 'err');
+    } finally {
+        dubVideoBtn.disabled = false;
+    }
+});
+
+dubDownloadBtn.addEventListener('click', () => {
+    if (!currentDubBlob) return;
+    const url = URL.createObjectURL(currentDubBlob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'video-doublee-francais.webm';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
