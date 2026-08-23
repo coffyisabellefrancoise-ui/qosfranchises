@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Traducteur Audio/Vidéo EN → FR</title>
+    <style>
+        :root {
+            --orange: #ff7900;
+            --black: #000000;
+            --grey: #f4f4f4;
+            --dark-grey: #333;
+            --green: #2e7d32;
+            --red: #c62828;
+        }
+
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            background-color: var(--grey);
+            margin: 0;
+            color: var(--dark-grey);
+        }
+
+        header {
+            background-color: var(--black);
+            color: white;
+            padding: 20px;
+            text-align: center;
+            border-bottom: 5px solid var(--orange);
+        }
+
+        header a {
+            color: white;
+            text-decoration: none;
+            font-size: 0.85rem;
+            opacity: 0.85;
+        }
+
+        header a:hover {
+            text-decoration: underline;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 20px auto;
+            padding: 0 20px 40px;
+        }
+
+        .card {
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+
+        .card h2 {
+            margin-top: 0;
+            font-size: 1.1rem;
+            color: var(--dark-grey);
+            border-left: 5px solid var(--orange);
+            padding-left: 10px;
+        }
+
+        .drop-zone {
+            border: 2px dashed var(--orange);
+            border-radius: 8px;
+            padding: 30px;
+            text-align: center;
+            color: #777;
+            background: #fffaf4;
+            cursor: pointer;
+        }
+
+        .drop-zone.dragover {
+            background: #ffe9d1;
+        }
+
+        #fileInput {
+            display: none;
+        }
+
+        .file-name {
+            margin-top: 10px;
+            font-weight: bold;
+            color: var(--dark-grey);
+        }
+
+        button {
+            background-color: var(--orange);
+            border: none;
+            color: white;
+            padding: 12px 24px;
+            margin: 5px 5px 5px 0;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 0.95rem;
+            transition: 0.3s;
+            border-radius: 6px;
+        }
+
+        button:hover:not(:disabled) {
+            background-color: #e06d00;
+        }
+
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+
+        button.secondary {
+            background: white;
+            border: 2px solid var(--orange);
+            color: var(--orange);
+        }
+
+        select {
+            padding: 8px;
+            border-radius: 6px;
+            border: 1px solid #ccc;
+            width: 100%;
+            max-width: 400px;
+            margin-bottom: 10px;
+        }
+
+        textarea {
+            width: 100%;
+            min-height: 110px;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #ddd;
+            font-family: inherit;
+            font-size: 0.95rem;
+            resize: vertical;
+            box-sizing: border-box;
+        }
+
+        .log {
+            background: #1e1e1e;
+            color: #b7f5b7;
+            font-family: 'Courier New', monospace;
+            font-size: 0.8rem;
+            padding: 12px;
+            border-radius: 6px;
+            max-height: 180px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+
+        .log .err { color: #ff8a80; }
+        .log .ok { color: #80ffb0; }
+
+        .badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .badge.free {
+            background: #e8f5e9;
+            color: var(--green);
+        }
+
+        .note {
+            font-size: 0.82rem;
+            color: #888;
+            margin-top: 8px;
+        }
+
+        footer {
+            text-align: center;
+            padding: 20px;
+            font-size: 0.8rem;
+            color: #888;
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>🎙️ TRADUCTEUR AUDIO / VIDÉO — Anglais → Français</h1>
+    <p>Transcription, traduction et lecture vocale, 100% dans le navigateur</p>
+    <a href="index.html">&larr; Retour au Dashboard Qualité</a>
+</header>
+
+<div class="container">
+
+    <div class="card">
+        <span class="badge free">Gratuit — aucune clé API, aucun paiement</span>
+        <h2>1. Choisir un fichier audio ou vidéo (en anglais)</h2>
+        <div class="drop-zone" id="dropZone">
+            <p>Cliquez ici ou déposez un fichier audio/vidéo (mp3, wav, m4a, mp4, webm...)</p>
+            <div class="file-name" id="fileName"></div>
+        </div>
+        <input type="file" id="fileInput" accept="audio/*,video/*">
+        <p class="note">
+            Tout le traitement (reconnaissance vocale + traduction) se fait localement dans votre navigateur
+            grâce à des modèles d'IA téléchargés une seule fois (~150 Mo, mis en cache). Pour une vidéo,
+            le traitement peut prendre à peu près la durée de la vidéo (extraction de la piste audio en temps réel).
+        </p>
+        <button id="startBtn" disabled>Traduire en français</button>
+    </div>
+
+    <div class="card">
+        <h2>2. Progression</h2>
+        <div class="log" id="log">En attente d'un fichier...</div>
+    </div>
+
+    <div class="card">
+        <h2>3. Transcription (anglais)</h2>
+        <textarea id="englishText" readonly placeholder="Le texte transcrit apparaîtra ici..."></textarea>
+    </div>
+
+    <div class="card">
+        <h2>4. Traduction (français)</h2>
+        <textarea id="frenchText" readonly placeholder="La traduction apparaîtra ici..."></textarea>
+        <div style="margin-top:15px;">
+            <label for="voiceSelect"><strong>Voix française :</strong></label><br>
+            <select id="voiceSelect"></select><br>
+            <button id="speakBtn" class="secondary" disabled>🔊 Écouter en français</button>
+            <button id="stopBtn" class="secondary" disabled>⏹ Stop</button>
+            <button id="downloadBtn" class="secondary" disabled>⬇ Télécharger le texte (.txt)</button>
+        </div>
+        <p class="note">
+            La qualité de la voix dépend des voix françaises installées sur votre appareil/navigateur.
+            Chrome/Edge proposent en général des voix "Google français" ou "Microsoft ... Natural" très naturelles.
+        </p>
+    </div>
+
+</div>
+
+<footer>
+    &copy; 2026 Dashboard Qualité — Traducteur Audio/Vidéo (outil interne)
+</footer>
+
+<script type="module">
+import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2';
+
+env.allowLocalModels = false;
+
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+const fileNameEl = document.getElementById('fileName');
+const startBtn = document.getElementById('startBtn');
+const logEl = document.getElementById('log');
+const englishTextEl = document.getElementById('englishText');
+const frenchTextEl = document.getElementById('frenchText');
+const voiceSelect = document.getElementById('voiceSelect');
+const speakBtn = document.getElementById('speakBtn');
+const stopBtn = document.getElementById('stopBtn');
+const downloadBtn = document.getElementById('downloadBtn');
+
+let selectedFile = null;
+let transcriber = null;
+let translator = null;
+
+function log(msg, cls) {
+    const line = document.createElement('div');
+    if (cls) line.className = cls;
+    const time = new Date().toLocaleTimeString('fr-FR');
+    line.textContent = `[${time}] ${msg}`;
+    logEl.appendChild(line);
+    logEl.scrollTop = logEl.scrollHeight;
+}
+
+function resetLog() {
+    logEl.innerHTML = '';
+}
+
+dropZone.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('dragover');
+    if (e.dataTransfer.files.length) {
+        selectedFile = e.dataTransfer.files[0];
+        onFileSelected();
+    }
+});
+fileInput.addEventListener('change', () => {
+    if (fileInput.files.length) {
+        selectedFile = fileInput.files[0];
+        onFileSelected();
+    }
+});
+
+function onFileSelected() {
+    fileNameEl.textContent = `Fichier sélectionné : ${selectedFile.name}`;
+    startBtn.disabled = false;
+    resetLog();
+    log(`Fichier prêt : ${selectedFile.name} (${(selectedFile.size / 1024 / 1024).toFixed(2)} Mo)`);
+}
+
+async function extractAudioBufferFromFile(file) {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    const audioCtx = new AudioContextClass();
+
+    if (file.type.startsWith('video/')) {
+        log('Extraction de la piste audio de la vidéo (lecture en temps réel)...');
+        const blob = await extractAudioBlobFromVideo(file);
+        const arrayBuffer = await blob.arrayBuffer();
+        return await audioCtx.decodeAudioData(arrayBuffer);
+    } else {
+        const arrayBuffer = await file.arrayBuffer();
+        return await audioCtx.decodeAudioData(arrayBuffer);
+    }
+}
+
+function extractAudioBlobFromVideo(file) {
+    return new Promise((resolve, reject) => {
+        const video = document.createElement('video');
+        video.src = URL.createObjectURL(file);
+        video.volume = 0;
+        video.playsInline = true;
+
+        video.addEventListener('loadedmetadata', async () => {
+            try {
+                const stream = video.captureStream ? video.captureStream() : video.mozCaptureStream();
+                const audioTracks = stream.getAudioTracks();
+                if (!audioTracks.length) {
+                    reject(new Error("Aucune piste audio détectée dans cette vidéo."));
+                    return;
+                }
+                const audioStream = new MediaStream(audioTracks);
+                const recorder = new MediaRecorder(audioStream);
+                const chunks = [];
+                recorder.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
+                recorder.onstop = () => resolve(new Blob(chunks, { type: 'audio/webm' }));
+                recorder.onerror = err => reject(err.error || err);
+
+                recorder.start();
+                await video.play();
+
+                video.onended = () => recorder.stop();
+                const safetyTimeout = (isFinite(video.duration) ? video.duration : 600) * 1000 + 3000;
+                setTimeout(() => { if (recorder.state !== 'inactive') recorder.stop(); }, safetyTimeout);
+            } catch (err) {
+                reject(err);
+            }
+        });
+        video.addEventListener('error', () => reject(new Error("Impossible de lire ce fichier vidéo.")));
+    });
+}
+
+async function resampleTo16kHzMono(audioBuffer) {
+    const targetSampleRate = 16000;
+    const duration = audioBuffer.duration;
+    const offlineCtx = new OfflineAudioContext(1, Math.ceil(duration * targetSampleRate), targetSampleRate);
+    const source = offlineCtx.createBufferSource();
+    source.buffer = audioBuffer;
+    source.connect(offlineCtx.destination);
+    source.start(0);
+    const rendered = await offlineCtx.startRendering();
+    return rendered.getChannelData(0);
+}
+
+function splitIntoChunks(text, maxLen = 400) {
+    const sentences = text.match(/[^.!?]+[.!?]*/g) || [text];
+    const chunks = [];
+    let current = '';
+    for (const s of sentences) {
+        if ((current + s).length > maxLen && current) {
+            chunks.push(current.trim());
+            current = s;
+        } else {
+            current += s;
+        }
+    }
+    if (current.trim()) chunks.push(current.trim());
+    return chunks.length ? chunks : [text];
+}
+
+function progressLogger(prefix) {
+    const seen = new Set();
+    return (data) => {
+        if (data.status === 'progress' && data.file) {
+            const key = data.file;
+            const pct = Math.round(data.progress || 0);
+            if (pct % 20 === 0 || !seen.has(key)) {
+                seen.add(key);
+                log(`${prefix} — téléchargement de ${data.file} : ${pct}%`);
+            }
+        }
+    };
+}
+
+async function run() {
+    startBtn.disabled = true;
+    fileInput.disabled = true;
+    englishTextEl.value = '';
+    frenchTextEl.value = '';
+    speakBtn.disabled = true;
+    downloadBtn.disabled = true;
+
+    try {
+        log('Décodage du fichier audio...');
+        const audioBuffer = await extractAudioBufferFromFile(selectedFile);
+        log(`Audio décodé : ${audioBuffer.duration.toFixed(1)}s, ${audioBuffer.sampleRate} Hz`, 'ok');
+
+        log('Ré-échantillonnage à 16 kHz mono...');
+        const samples = await resampleTo16kHzMono(audioBuffer);
+
+        if (!transcriber) {
+            log('Chargement du modèle de reconnaissance vocale (Whisper, première fois seulement)...');
+            transcriber = await pipeline('automatic-speech-recognition', 'Xenova/whisper-tiny.en', {
+                progress_callback: progressLogger('Whisper')
+            });
+        }
+        log('Transcription en cours...');
+        const asrOutput = await transcriber(samples, { chunk_length_s: 30, stride_length_s: 5 });
+        const englishText = (asrOutput.text || '').trim();
+        englishTextEl.value = englishText || '(aucun texte détecté)';
+        log('Transcription terminée.', 'ok');
+
+        if (!englishText) {
+            log("Aucun texte n'a pu être transcrit depuis ce fichier.", 'err');
+            return;
+        }
+
+        if (!translator) {
+            log('Chargement du modèle de traduction EN→FR (première fois seulement)...');
+            translator = await pipeline('translation', 'Xenova/opus-mt-en-fr', {
+                progress_callback: progressLogger('Traduction')
+            });
+        }
+        log('Traduction en cours...');
+        const chunks = splitIntoChunks(englishText);
+        let frenchText = '';
+        for (let i = 0; i < chunks.length; i++) {
+            log(`Traduction du segment ${i + 1}/${chunks.length}...`);
+            const result = await translator(chunks[i], { max_new_tokens: 512 });
+            frenchText += (frenchText ? ' ' : '') + result[0].translation_text;
+        }
+        frenchTextEl.value = frenchText;
+        log('Traduction terminée !', 'ok');
+
+        speakBtn.disabled = false;
+        downloadBtn.disabled = false;
+    } catch (err) {
+        console.error(err);
+        log(`Erreur : ${err.message || err}`, 'err');
+    } finally {
+        startBtn.disabled = false;
+        fileInput.disabled = false;
+    }
+}
+
+startBtn.addEventListener('click', run);
+
+// --- Voix françaises (synthèse vocale) ---
+let frenchVoices = [];
+
+function loadVoices() {
+    const voices = speechSynthesis.getVoices();
+    frenchVoices = voices.filter(v => v.lang && v.lang.toLowerCase().startsWith('fr'));
+    frenchVoices.sort((a, b) => {
+        const score = v => /google|natural|neural/i.test(v.name) ? 0 : 1;
+        return score(a) - score(b);
+    });
+
+    voiceSelect.innerHTML = '';
+    if (!frenchVoices.length) {
+        const opt = document.createElement('option');
+        opt.textContent = 'Aucune voix française trouvée sur cet appareil';
+        voiceSelect.appendChild(opt);
+        return;
+    }
+    frenchVoices.forEach((v, i) => {
+        const opt = document.createElement('option');
+        opt.value = i;
+        opt.textContent = `${v.name} (${v.lang})`;
+        voiceSelect.appendChild(opt);
+    });
+}
+
+loadVoices();
+if (speechSynthesis.onvoiceschanged !== undefined) {
+    speechSynthesis.onvoiceschanged = loadVoices;
+}
+
+speakBtn.addEventListener('click', () => {
+    const text = frenchTextEl.value;
+    if (!text) return;
+    speechSynthesis.cancel();
+    const utter = new SpeechSynthesisUtterance(text);
+    const idx = voiceSelect.value;
+    if (frenchVoices[idx]) utter.voice = frenchVoices[idx];
+    utter.lang = 'fr-FR';
+    utter.rate = 0.95;
+    utter.onend = () => stopBtn.disabled = true;
+    speechSynthesis.speak(utter);
+    stopBtn.disabled = false;
+});
+
+stopBtn.addEventListener('click', () => {
+    speechSynthesis.cancel();
+    stopBtn.disabled = true;
+});
+
+downloadBtn.addEventListener('click', () => {
+    const text = frenchTextEl.value;
+    if (!text) return;
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'traduction-francais.txt';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+});
+</script>
+
+</body>
+</html>
