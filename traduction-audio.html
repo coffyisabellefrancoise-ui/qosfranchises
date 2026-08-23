@@ -1,0 +1,1408 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Traducteur Audio/Vidéo Multilingue</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" href="icons/icon-192.png">
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+    <meta name="theme-color" content="#000000">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Traducteur IA">
+    <style>
+        :root {
+            --orange: #ff7900;
+            --orange-dark: #e06d00;
+            --black: #0b0b0b;
+            --grey: #f4f4f2;
+            --dark-grey: #333;
+            --green: #2e7d32;
+            --red: #c62828;
+            --card-radius: 14px;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+            background:
+                radial-gradient(1200px 400px at 50% -100px, rgba(255,121,0,0.10), transparent),
+                var(--grey);
+            margin: 0;
+            color: var(--dark-grey);
+            line-height: 1.5;
+        }
+
+        header {
+            background: linear-gradient(135deg, #0b0b0b 0%, #1c1c1c 100%);
+            color: white;
+            padding: 28px 20px 24px;
+            text-align: center;
+            border-bottom: 4px solid var(--orange);
+        }
+
+        header h1 {
+            margin: 0 0 6px;
+            font-size: 1.5rem;
+            letter-spacing: -0.01em;
+        }
+
+        header p {
+            margin: 0 0 10px;
+            opacity: 0.75;
+            font-size: 0.92rem;
+        }
+
+        header a {
+            color: white;
+            text-decoration: none;
+            font-size: 0.82rem;
+            opacity: 0.7;
+            border-bottom: 1px solid transparent;
+            transition: opacity 0.15s, border-color 0.15s;
+        }
+
+        header a:hover {
+            opacity: 1;
+            border-color: rgba(255,255,255,0.4);
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 28px auto;
+            padding: 0 20px 48px;
+        }
+
+        .card {
+            background: white;
+            padding: 26px 28px;
+            border-radius: var(--card-radius);
+            box-shadow: 0 1px 2px rgba(0,0,0,0.04), 0 10px 30px -12px rgba(0,0,0,0.12);
+            border: 1px solid rgba(0,0,0,0.04);
+            margin-bottom: 22px;
+        }
+
+        .card h2 {
+            margin: 0 0 18px;
+            font-size: 1.05rem;
+            font-weight: 700;
+            color: var(--black);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .card h2::before {
+            content: attr(data-step);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+            background: var(--orange);
+            color: white;
+            font-size: 0.8rem;
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+
+        .drop-zone {
+            border: 2px dashed #ffbd80;
+            border-radius: 10px;
+            padding: 34px 20px;
+            text-align: center;
+            color: #8a8a8a;
+            background: #fffaf4;
+            cursor: pointer;
+            transition: border-color 0.15s, background 0.15s;
+        }
+
+        .drop-zone:hover {
+            border-color: var(--orange);
+            background: #fff3e6;
+        }
+
+        .drop-zone.dragover {
+            background: #ffe9d1;
+            border-color: var(--orange);
+        }
+
+        #fileInput {
+            display: none;
+        }
+
+        .file-name {
+            margin-top: 10px;
+            font-weight: bold;
+            color: var(--dark-grey);
+        }
+
+        .field {
+            margin-bottom: 16px;
+        }
+
+        .field label {
+            display: block;
+            font-weight: bold;
+            font-size: 0.9rem;
+            margin-bottom: 6px;
+        }
+
+        button {
+            background-color: var(--orange);
+            border: none;
+            color: white;
+            padding: 12px 22px;
+            margin: 5px 8px 5px 0;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.92rem;
+            transition: transform 0.12s ease, box-shadow 0.12s ease, background-color 0.15s;
+            border-radius: 8px;
+            box-shadow: 0 2px 6px rgba(255,121,0,0.25);
+        }
+
+        button:hover:not(:disabled) {
+            background-color: var(--orange-dark);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 10px rgba(255,121,0,0.32);
+        }
+
+        button:active:not(:disabled) {
+            transform: translateY(0);
+        }
+
+        button:disabled {
+            background-color: #e2e2e2;
+            color: #a3a3a3;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+
+        button.secondary {
+            background: white;
+            border: 1.5px solid var(--orange);
+            color: var(--orange);
+            box-shadow: none;
+        }
+
+        button.secondary:hover:not(:disabled) {
+            background: #fff3e6;
+            box-shadow: none;
+        }
+
+        button.secondary:disabled {
+            background: white;
+            border-color: #e2e2e2;
+            color: #b7b7b7;
+        }
+
+        select, input[type="text"], input[type="number"] {
+            padding: 10px 12px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+            width: 100%;
+            max-width: 400px;
+            margin-bottom: 6px;
+            font-size: 0.92rem;
+            font-family: inherit;
+            background: white;
+            transition: border-color 0.15s;
+        }
+
+        select:focus, input:focus, textarea:focus {
+            outline: none;
+            border-color: var(--orange);
+        }
+
+        textarea {
+            width: 100%;
+            min-height: 110px;
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+            font-family: inherit;
+            font-size: 0.92rem;
+            resize: vertical;
+            box-sizing: border-box;
+            background: #fcfcfb;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #eee;
+            border-radius: 999px;
+            overflow: hidden;
+            margin: 14px 0 4px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, var(--orange), #ffb066);
+            border-radius: 999px;
+            transition: width 0.3s ease;
+        }
+
+        .log {
+            background: #151515;
+            color: #b7f5b7;
+            font-family: 'SF Mono', 'Courier New', monospace;
+            font-size: 0.8rem;
+            padding: 14px 16px;
+            border-radius: 10px;
+            max-height: 180px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            line-height: 1.6;
+        }
+
+        .log .err { color: #ff8a80; }
+        .log .ok { color: #80ffb0; }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 999px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+            margin-bottom: 12px;
+            margin-right: 6px;
+        }
+
+        .badge.free {
+            background: #e8f5e9;
+            color: var(--green);
+        }
+
+        .note {
+            font-size: 0.82rem;
+            color: #888;
+            margin-top: 8px;
+        }
+
+        .voice-block {
+            border: 1px solid #eee;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 12px;
+        }
+
+        .voice-block.highlight {
+            border: 2px solid var(--orange);
+            background: #fffaf4;
+        }
+
+        .voice-block.highlight button:not(.secondary) {
+            font-size: 1.05rem;
+            padding: 14px 26px;
+        }
+
+        .voice-block h3 {
+            margin: 0 0 10px;
+            font-size: 0.95rem;
+        }
+
+        audio {
+            width: 100%;
+            margin-top: 10px;
+        }
+
+        footer {
+            text-align: center;
+            padding: 20px;
+            font-size: 0.8rem;
+            color: #888;
+        }
+
+        .file-name {
+            overflow-wrap: break-word;
+            word-break: break-word;
+        }
+
+        @media (max-width: 600px) {
+            .container { padding: 0 12px 32px; }
+            .card { padding: 18px 16px; }
+            header h1 { font-size: 1.2rem; }
+            header p { font-size: 0.82rem; }
+            button { padding: 11px 16px; font-size: 0.86rem; margin-right: 6px; }
+            select, input[type="text"], input[type="number"] { max-width: 100%; }
+            .card h2 { font-size: 0.95rem; }
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>🎙️ TRADUCTEUR AUDIO / VIDÉO — Anglais → votre langue</h1>
+    <p>Transcription, traduction (20+ langues) et doublage vocal, 100% dans le navigateur</p>
+    <a href="index.html">&larr; Retour au Dashboard Qualité</a>
+    <span id="logoutSep">&nbsp;|&nbsp;</span>
+    <a href="#" id="logoutLink">Se déconnecter</a>
+</header>
+
+<div class="container">
+
+    <div class="card">
+        <span class="badge free">Gratuit — aucune clé API, aucun paiement</span>
+        <h2 data-step="1">Choisir un fichier audio ou vidéo (en anglais)</h2>
+        <div class="drop-zone" id="dropZone">
+            <p>Cliquez ici ou déposez un fichier audio/vidéo (mp3, wav, m4a, mp4, webm... — 300 Mo max)</p>
+            <div class="file-name" id="fileName"></div>
+        </div>
+        <button id="removeFileBtn" class="secondary" style="display:none; margin-top:8px;" type="button">✕ Retirer le fichier</button>
+        <input type="file" id="fileInput" accept="audio/*,video/*">
+
+        <div class="field" style="margin-top:18px;">
+            <label for="qualitySelect">Qualité de transcription</label>
+            <select id="qualitySelect">
+                <option value="rapide">Rapide (moins précis, court fichier / brouillon)</option>
+                <option value="equilibre" selected>Équilibré (recommandé)</option>
+                <option value="precis">Précis (plus lent, meilleure fidélité)</option>
+            </select>
+        </div>
+
+        <div class="field">
+            <label for="langSelect">Traduire vers</label>
+            <select id="langSelect"></select>
+            <div class="hint note" id="langAvailabilityNote" style="margin-top:2px;"></div>
+        </div>
+
+        <p class="note">
+            Tout le traitement (reconnaissance vocale + traduction + génération de la voix) se fait localement
+            dans votre navigateur grâce à des modèles d'IA téléchargés une seule fois (mis en cache). Pour une
+            vidéo, l'extraction de la piste audio prend à peu près la durée de la vidéo. Certaines langues n'ont
+            pas encore de voix IA neuronale téléchargeable — la voix du navigateur reste disponible en secours.
+        </p>
+        <button id="startBtn" disabled>Traduire</button>
+        <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+    </div>
+
+    <div class="card">
+        <h2 data-step="2">Progression</h2>
+        <div class="log" id="log">En attente d'un fichier...</div>
+    </div>
+
+    <div class="card">
+        <h2 data-step="3">Transcription (anglais)</h2>
+        <textarea id="englishText" placeholder="Le texte transcrit apparaîtra ici... (modifiable — ou collez votre propre texte anglais)"></textarea>
+        <button id="pasteEnBtn" class="secondary" type="button">📥 Coller</button>
+        <button id="copyEnBtn" class="secondary" disabled>📋 Copier</button>
+        <button id="downloadEnBtn" class="secondary" disabled>⬇ Télécharger le texte anglais (.txt)</button>
+        <button id="translateTextBtn" type="button">🔤 Traduire ce texte</button>
+        <p class="note">
+            Vous pouvez aussi coller directement un texte anglais ici (sans fichier audio/vidéo) puis cliquer
+            "Traduire ce texte".
+        </p>
+    </div>
+
+    <div class="card">
+        <h2 id="translationTitle" data-step="4">Traduction</h2>
+        <textarea id="frenchText" placeholder="La traduction apparaîtra ici... (modifiable)"></textarea>
+        <button id="pasteFrBtn" class="secondary" type="button">📥 Coller</button>
+        <button id="copyFrBtn" class="secondary" disabled>📋 Copier</button>
+        <button id="downloadFrBtn" class="secondary" disabled>⬇ Télécharger le texte traduit (.txt)</button>
+
+        <div class="voice-block" id="aiVoiceBlock">
+            <h3>🧠 Voix IA neuronale — fichier audio téléchargeable</h3>
+            <label for="voiceStyleSelect" style="font-size:0.85rem; font-weight:bold; display:block; margin-bottom:6px;">Style de voix</label>
+            <select id="voiceStyleSelect">
+                <option value="normal">Voix originale</option>
+                <option value="homme">Voix homme (grave)</option>
+                <option value="femme">Voix femme (aiguë)</option>
+                <option value="enfant_garcon">Voix enfant — garçon</option>
+                <option value="enfant_fille">Voix enfant — fille</option>
+            </select>
+            <br>
+            <button id="aiVoiceBtn" class="secondary" disabled>🎧 Générer l'audio</button>
+            <button id="aiDownloadBtn" class="secondary" disabled>⬇ Télécharger l'audio (.wav)</button>
+            <audio id="aiAudioPlayer" controls style="display:none;"></audio>
+            <p class="note">
+                Génère un vrai fichier audio (.wav) de la traduction, avec une voix neuronale IA (modèle MMS-TTS),
+                sans permission particulière. Le premier appel télécharge le modèle de voix (une seule fois).
+                Les styles homme/femme/enfant sont obtenus par transformation de hauteur de voix (pitch) à partir
+                de la voix de base du modèle — un effet simple et gratuit, pas un clonage vocal.
+            </p>
+            <p class="note" id="aiVoiceUnavailableNote" style="display:none; color:#c62828;">
+                Pas encore de voix IA neuronale gratuite pour cette langue — utilisez la voix du navigateur ci-dessous.
+            </p>
+        </div>
+
+        <div class="voice-block highlight" id="videoDubBlock" style="display:none;">
+            <h3>🎬 Vidéo traduite — téléchargeable</h3>
+            <button id="oneClickVideoBtn" disabled>🎬⬇ Traduire et télécharger la vidéo (.webm)</button>
+            <div id="oneClickVideoUnavailable" class="note" style="display:none; color:#c62828;">
+                Pas de voix IA neuronale disponible pour cette langue : la vidéo traduite téléchargeable n'est
+                pas possible ici (essayez Français, Espagnol, Allemand, Portugais, Russe, Arabe, Hindi, Coréen
+                ou Vietnamien).
+            </div>
+            <video id="dubVideoPlayer" controls style="display:none; width:100%; margin-top:10px;"></video>
+            <p class="note">
+                Remplace la piste audio d'origine par la voix générée dans le style choisi ci-dessus et
+                télécharge automatiquement un fichier vidéo. La génération tourne en temps réel (≈ la durée de
+                la vidéo, donc environ 5 minutes pour une vidéo de 5 minutes). La longueur de la traduction
+                parlée diffère souvent de l'audio d'origine : ce n'est pas un doublage synchronisé lèvres/voix
+                comme HeyGen, seulement un remplacement de la bande audio.
+            </p>
+            <details style="margin-top:10px;">
+                <summary style="cursor:pointer; font-size:0.85rem; color:var(--orange); font-weight:bold;">Options avancées (étapes séparées)</summary>
+                <div style="margin-top:10px;">
+                    <button id="dubVideoBtn" class="secondary" disabled>🎬 Générer la vidéo doublée (sans télécharger)</button>
+                    <button id="dubDownloadBtn" class="secondary" disabled>⬇ Télécharger la vidéo générée (.webm)</button>
+                </div>
+            </details>
+        </div>
+
+        <div class="voice-block">
+            <h3>🔊 Voix du navigateur — lecture instantanée</h3>
+            <select id="voiceSelect"></select><br>
+            <button id="speakBtn" class="secondary" disabled>🔊 Écouter</button>
+            <button id="stopBtn" class="secondary" disabled>⏹ Stop</button>
+            <p class="note">
+                Utilise les voix déjà installées sur votre appareil/navigateur pour la langue choisie (pratique et
+                instantané, mais non téléchargeable en fichier audio).
+            </p>
+        </div>
+    </div>
+
+</div>
+
+<footer>
+    &copy; 2026 Dashboard Qualité — Traducteur Audio/Vidéo (outil interne)
+</footer>
+
+<script type="module">
+import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2';
+
+env.allowLocalModels = false;
+
+// Filet de sécurité : aucune erreur ne doit rester silencieuse dans la console
+// sans que l'utilisateur en soit informé dans le journal de l'appli.
+window.addEventListener('unhandledrejection', (event) => {
+    console.error('Erreur non gérée :', event.reason);
+    if (typeof log === 'function') {
+        log(`Erreur inattendue : ${event.reason && event.reason.message ? event.reason.message : event.reason}`, 'err');
+    }
+});
+
+// Rend le site installable (PWA). Sans effet en local (file://) : un service
+// worker ne peut s'enregistrer que via http(s):// ou localhost.
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+
+// --- Contrôle d'accès (compte + abonnement actif) ---
+// Configuration Supabase EN DUR (pas d'import de fichier local : un import relatif
+// depuis un fichier ouvert directement en double-clic (file://) est bloqué par les
+// navigateurs, ce qui empêchait TOUT le script de démarrer). Tant que ces valeurs
+// restent des placeholders, l'outil tourne en mode libre (sans compte) pour pouvoir
+// être testé immédiatement. Remplacez-les par vos vraies valeurs Supabase
+// (voir SAAS_SETUP.md) pour activer la vérification d'abonnement en production.
+const SUPABASE_URL = 'https://YOUR-PROJECT.supabase.co';
+const SUPABASE_ANON_KEY = 'YOUR-ANON-PUBLIC-KEY';
+const AUTH_ENABLED = !SUPABASE_URL.includes('YOUR-PROJECT');
+
+const logoutLink = document.getElementById('logoutLink');
+
+if (AUTH_ENABLED) {
+    const { createClient } = await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm');
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+        window.location.href = 'login.html';
+        throw new Error('Redirection vers la connexion...');
+    }
+
+    const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('subscribed')
+        .eq('id', session.user.id)
+        .single();
+
+    if (profileError || !profile || !profile.subscribed) {
+        window.location.href = 'pricing.html';
+        throw new Error('Redirection vers la page d\'abonnement...');
+    }
+
+    logoutLink.addEventListener('click', async (e) => {
+        e.preventDefault();
+        await supabase.auth.signOut();
+        window.location.href = 'login.html';
+    });
+} else {
+    logoutLink.style.display = 'none';
+    document.getElementById('logoutSep').style.display = 'none';
+}
+
+const QUALITY_MODELS = {
+    rapide: 'Xenova/whisper-tiny.en',
+    equilibre: 'Xenova/whisper-base.en',
+    precis: 'Xenova/whisper-small.en'
+};
+
+// Langues cibles disponibles. ttsModel: null = pas de voix IA neuronale gratuite
+// connue pour l'instant pour cette langue (secours automatique sur la voix du
+// navigateur). Les modèles de traduction sont des ports ONNX (Xenova) des modèles
+// Helsinki-NLP Opus-MT ; si un modèle venait à ne pas être disponible, une erreur
+// claire s'affiche dans le journal plutôt que de planter silencieusement.
+const LANGUAGES = {
+    fr: { name: 'Français', bcp47: 'fr', translateModel: 'Xenova/opus-mt-en-fr', ttsModel: 'Xenova/mms-tts-fra' },
+    es: { name: 'Espagnol', bcp47: 'es', translateModel: 'Xenova/opus-mt-en-es', ttsModel: 'Xenova/mms-tts-spa' },
+    de: { name: 'Allemand', bcp47: 'de', translateModel: 'Xenova/opus-mt-en-de', ttsModel: 'Xenova/mms-tts-deu' },
+    pt: { name: 'Portugais', bcp47: 'pt', translateModel: 'Xenova/opus-mt-en-pt', ttsModel: 'Xenova/mms-tts-por' },
+    it: { name: 'Italien', bcp47: 'it', translateModel: 'Xenova/opus-mt-en-it', ttsModel: null },
+    ru: { name: 'Russe', bcp47: 'ru', translateModel: 'Xenova/opus-mt-en-ru', ttsModel: 'Xenova/mms-tts-rus' },
+    ar: { name: 'Arabe', bcp47: 'ar', translateModel: 'Xenova/opus-mt-en-ar', ttsModel: 'Xenova/mms-tts-ara' },
+    hi: { name: 'Hindi', bcp47: 'hi', translateModel: 'Xenova/opus-mt-en-hi', ttsModel: 'Xenova/mms-tts-hin' },
+    bn: { name: 'Bengali', bcp47: 'bn', translateModel: 'Xenova/opus-mt-en-bn', ttsModel: null },
+    ur: { name: 'Ourdou', bcp47: 'ur', translateModel: 'Xenova/opus-mt-en-ur', ttsModel: null },
+    zh: { name: 'Chinois (mandarin)', bcp47: 'zh', translateModel: 'Xenova/opus-mt-en-zh', ttsModel: null },
+    ja: { name: 'Japonais', bcp47: 'ja', translateModel: 'Xenova/opus-mt-en-jap', ttsModel: null },
+    ko: { name: 'Coréen', bcp47: 'ko', translateModel: 'Xenova/opus-mt-en-ko', ttsModel: 'Xenova/mms-tts-kor' },
+    vi: { name: 'Vietnamien', bcp47: 'vi', translateModel: 'Xenova/opus-mt-en-vi', ttsModel: 'Xenova/mms-tts-vie' },
+    tr: { name: 'Turc', bcp47: 'tr', translateModel: 'Xenova/opus-mt-en-trk', ttsModel: null },
+    id: { name: 'Indonésien', bcp47: 'id', translateModel: 'Xenova/opus-mt-en-id', ttsModel: null },
+    sw: { name: 'Swahili', bcp47: 'sw', translateModel: 'Xenova/opus-mt-en-swc', ttsModel: null },
+    ta: { name: 'Tamoul', bcp47: 'ta', translateModel: 'Xenova/opus-mt-en-dra', ttsModel: null },
+    pl: { name: 'Polonais', bcp47: 'pl', translateModel: 'Xenova/opus-mt-en-sla', ttsModel: null },
+    nl: { name: 'Néerlandais', bcp47: 'nl', translateModel: 'Xenova/opus-mt-en-nl', ttsModel: null }
+};
+
+const translators = {};
+const synthesizers = {};
+
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+const fileNameEl = document.getElementById('fileName');
+const removeFileBtn = document.getElementById('removeFileBtn');
+const qualitySelect = document.getElementById('qualitySelect');
+const langSelect = document.getElementById('langSelect');
+const langAvailabilityNote = document.getElementById('langAvailabilityNote');
+const translationTitle = document.getElementById('translationTitle');
+const aiVoiceBlock = document.getElementById('aiVoiceBlock');
+const aiVoiceUnavailableNote = document.getElementById('aiVoiceUnavailableNote');
+const startBtn = document.getElementById('startBtn');
+const progressFill = document.getElementById('progressFill');
+const logEl = document.getElementById('log');
+const englishTextEl = document.getElementById('englishText');
+const frenchTextEl = document.getElementById('frenchText');
+const pasteEnBtn = document.getElementById('pasteEnBtn');
+const copyEnBtn = document.getElementById('copyEnBtn');
+const downloadEnBtn = document.getElementById('downloadEnBtn');
+const translateTextBtn = document.getElementById('translateTextBtn');
+const pasteFrBtn = document.getElementById('pasteFrBtn');
+const copyFrBtn = document.getElementById('copyFrBtn');
+const downloadFrBtn = document.getElementById('downloadFrBtn');
+const voiceStyleSelect = document.getElementById('voiceStyleSelect');
+const aiVoiceBtn = document.getElementById('aiVoiceBtn');
+const aiDownloadBtn = document.getElementById('aiDownloadBtn');
+const aiAudioPlayer = document.getElementById('aiAudioPlayer');
+const voiceSelect = document.getElementById('voiceSelect');
+const speakBtn = document.getElementById('speakBtn');
+const stopBtn = document.getElementById('stopBtn');
+const videoDubBlock = document.getElementById('videoDubBlock');
+const dubVideoBtn = document.getElementById('dubVideoBtn');
+const dubDownloadBtn = document.getElementById('dubDownloadBtn');
+const dubVideoPlayer = document.getElementById('dubVideoPlayer');
+const oneClickVideoBtn = document.getElementById('oneClickVideoBtn');
+const oneClickVideoUnavailable = document.getElementById('oneClickVideoUnavailable');
+
+let selectedFile = null;
+let transcriber = null;
+let loadedQuality = null;
+let currentDubBlob = null;
+let currentWavBlob = null;
+let currentAiAudioUrl = null;
+let currentDubVideoUrl = null;
+
+// Verrou global : évite que deux opérations (transcription, génération de voix,
+// génération de vidéo) tournent en même temps et se marchent dessus en écrivant
+// sur les mêmes variables partagées (currentWavBlob, currentDubBlob, selectedFile...).
+let busy = false;
+function tryStart() {
+    if (busy) {
+        log("Une opération est déjà en cours — attendez qu'elle se termine.", 'err');
+        return false;
+    }
+    busy = true;
+    return true;
+}
+
+function populateLangSelect() {
+    Object.keys(LANGUAGES).forEach(code => {
+        const opt = document.createElement('option');
+        opt.value = code;
+        opt.textContent = LANGUAGES[code].name;
+        if (code === 'fr') opt.selected = true;
+        langSelect.appendChild(opt);
+    });
+}
+populateLangSelect();
+
+function currentLang() {
+    return LANGUAGES[langSelect.value];
+}
+
+function updateLangUI() {
+    const lang = currentLang();
+    translationTitle.textContent = `Traduction (${lang.name})`;
+    startBtn.textContent = `Traduire en ${lang.name}`;
+    if (lang.ttsModel) {
+        langAvailabilityNote.textContent = '';
+        aiVoiceBlock.style.display = 'block';
+        aiVoiceUnavailableNote.style.display = 'none';
+        aiVoiceBtn.style.display = 'inline-block';
+        aiDownloadBtn.style.display = 'inline-block';
+    } else {
+        langAvailabilityNote.textContent = 'Voix IA neuronale non disponible pour cette langue — la voix du navigateur sera utilisée.';
+        aiVoiceUnavailableNote.style.display = 'block';
+        aiVoiceBtn.style.display = 'none';
+        aiDownloadBtn.style.display = 'none';
+    }
+    oneClickVideoUnavailable.style.display = lang.ttsModel ? 'none' : 'block';
+    oneClickVideoBtn.style.display = lang.ttsModel ? 'inline-block' : 'none';
+    loadVoices();
+}
+
+langSelect.addEventListener('change', updateLangUI);
+updateLangUI();
+
+function log(msg, cls) {
+    const line = document.createElement('div');
+    if (cls) line.className = cls;
+    const time = new Date().toLocaleTimeString('fr-FR');
+    line.textContent = `[${time}] ${msg}`;
+    logEl.appendChild(line);
+    logEl.scrollTop = logEl.scrollHeight;
+}
+
+function resetLog() {
+    logEl.innerHTML = '';
+}
+
+function setProgress(pct) {
+    progressFill.style.width = `${Math.max(0, Math.min(100, pct))}%`;
+}
+
+function downloadText(text, filename) {
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+// --- Sélection du fichier ---
+
+const MAX_FILE_SIZE_MB = 300;
+
+function validateFile(file) {
+    if (!file) return "Aucun fichier reçu.";
+    if (file.size === 0) return `Le fichier "${file.name}" est vide (0 octet) — il est probablement corrompu.`;
+    if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
+        return `Le fichier "${file.name}" fait ${(file.size / 1024 / 1024).toFixed(0)} Mo, ce qui dépasse la limite de ${MAX_FILE_SIZE_MB} Mo pour un traitement fiable dans le navigateur.`;
+    }
+    if (!file.type.startsWith('audio/') && !file.type.startsWith('video/')) {
+        return `"${file.name}" ne semble pas être un fichier audio ou vidéo reconnu par votre navigateur.`;
+    }
+    return null;
+}
+
+function handleIncomingFile(file) {
+    if (busy) {
+        log("Une opération est déjà en cours — attendez qu'elle se termine avant de changer de fichier.", 'err');
+        return;
+    }
+    const error = validateFile(file);
+    if (error) {
+        log(error, 'err');
+        return;
+    }
+    selectedFile = file;
+    onFileSelected();
+}
+
+dropZone.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('dragover');
+    if (e.dataTransfer.files.length) handleIncomingFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', () => {
+    if (fileInput.files.length) handleIncomingFile(fileInput.files[0]);
+    fileInput.value = ''; // permet de re-sélectionner le même fichier après un "Retirer"
+});
+
+function onFileSelected() {
+    fileNameEl.textContent = `Fichier sélectionné : ${selectedFile.name} (${(selectedFile.size / 1024 / 1024).toFixed(2)} Mo)`;
+    startBtn.disabled = false;
+    removeFileBtn.style.display = 'inline-block';
+    resetLog();
+    setProgress(0);
+    log(`Fichier prêt : ${selectedFile.name} (${(selectedFile.size / 1024 / 1024).toFixed(2)} Mo)`, 'ok');
+
+    videoDubBlock.style.display = selectedFile.type.startsWith('video/') ? 'block' : 'none';
+    dubVideoBtn.disabled = true;
+    dubDownloadBtn.disabled = true;
+    oneClickVideoBtn.disabled = true;
+    dubVideoPlayer.style.display = 'none';
+    currentDubBlob = null;
+    if (currentDubVideoUrl) { URL.revokeObjectURL(currentDubVideoUrl); currentDubVideoUrl = null; }
+}
+
+removeFileBtn.addEventListener('click', () => {
+    if (busy) {
+        log("Une opération est déjà en cours — impossible de retirer le fichier maintenant.", 'err');
+        return;
+    }
+    selectedFile = null;
+    fileInput.value = '';
+    fileNameEl.textContent = '';
+    removeFileBtn.style.display = 'none';
+    startBtn.disabled = true;
+    englishTextEl.value = '';
+    frenchTextEl.value = '';
+    downloadEnBtn.disabled = true;
+    downloadFrBtn.disabled = true;
+    copyEnBtn.disabled = true;
+    copyFrBtn.disabled = true;
+    videoDubBlock.style.display = 'none';
+    setProgress(0);
+    resetLog();
+    log("Fichier retiré. Sélectionnez-en un nouveau pour continuer.");
+});
+
+// --- Extraction / décodage audio ---
+
+async function extractAudioBufferFromFile(file) {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) throw new Error("Ce navigateur ne prend pas en charge le traitement audio (Web Audio API).");
+    const audioCtx = new AudioContextClass();
+
+    if (file.type.startsWith('video/')) {
+        log('Extraction de la piste audio de la vidéo (lecture en temps réel)...');
+        const blob = await extractAudioBlobFromVideo(file);
+        const arrayBuffer = await blob.arrayBuffer();
+        return await audioCtx.decodeAudioData(arrayBuffer);
+    } else {
+        const arrayBuffer = await file.arrayBuffer();
+        return await audioCtx.decodeAudioData(arrayBuffer);
+    }
+}
+
+function extractAudioBlobFromVideo(file) {
+    return new Promise((resolve, reject) => {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        const audioCtx = new AudioContextClass();
+        const video = document.createElement('video');
+        video.src = URL.createObjectURL(file);
+        // Muet + capture via Web Audio API : ceci évite le blocage de lecture automatique
+        // des navigateurs (autoplay policy) tout en récupérant quand même les échantillons audio.
+        video.muted = true;
+        video.playsInline = true;
+
+        video.addEventListener('loadedmetadata', async () => {
+            try {
+                const source = audioCtx.createMediaElementSource(video);
+                const destination = audioCtx.createMediaStreamDestination();
+                source.connect(destination);
+
+                const audioTracks = destination.stream.getAudioTracks();
+                if (!audioTracks.length) {
+                    reject(new Error("Aucune piste audio détectée dans cette vidéo."));
+                    return;
+                }
+                const recorder = new MediaRecorder(destination.stream);
+                const chunks = [];
+                recorder.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
+                recorder.onstop = () => resolve(new Blob(chunks, { type: 'audio/webm' }));
+                recorder.onerror = err => reject(err.error || err);
+
+                recorder.start();
+                await video.play();
+
+                video.onended = () => recorder.stop();
+                const safetyTimeout = (isFinite(video.duration) ? video.duration : 600) * 1000 + 3000;
+                setTimeout(() => { if (recorder.state !== 'inactive') recorder.stop(); }, safetyTimeout);
+            } catch (err) {
+                reject(err);
+            }
+        });
+        video.addEventListener('error', () => reject(new Error("Impossible de lire ce fichier vidéo.")));
+    });
+}
+
+async function resampleTo16kHzMono(audioBuffer) {
+    const targetSampleRate = 16000;
+    const duration = audioBuffer.duration;
+    const offlineCtx = new OfflineAudioContext(1, Math.ceil(duration * targetSampleRate), targetSampleRate);
+    const source = offlineCtx.createBufferSource();
+    source.buffer = audioBuffer;
+    source.connect(offlineCtx.destination);
+    source.start(0);
+    const rendered = await offlineCtx.startRendering();
+    return rendered.getChannelData(0);
+}
+
+function splitIntoChunks(text, maxLen = 400) {
+    const sentences = text.match(/[^.!?]+[.!?]*/g) || [text];
+    const chunks = [];
+    let current = '';
+    for (const s of sentences) {
+        if ((current + s).length > maxLen && current) {
+            chunks.push(current.trim());
+            current = s;
+        } else {
+            current += s;
+        }
+    }
+    if (current.trim()) chunks.push(current.trim());
+    return chunks.length ? chunks : [text];
+}
+
+function progressLogger(prefix) {
+    const seen = new Set();
+    return (data) => {
+        if (data.status === 'progress' && data.file) {
+            const key = data.file;
+            const pct = Math.round(data.progress || 0);
+            if (pct % 20 === 0 || !seen.has(key)) {
+                seen.add(key);
+                log(`${prefix} — téléchargement de ${data.file} : ${pct}%`);
+            }
+        }
+    };
+}
+
+// --- Traduction (réutilisable : appelée par le pipeline complet ET par "Traduire ce texte") ---
+
+async function translateEnglishText(englishText) {
+    const lang = currentLang();
+    if (!translators[lang.bcp47]) {
+        log(`Chargement du modèle de traduction EN→${lang.name} (mis en cache après la 1ère fois)...`);
+        try {
+            translators[lang.bcp47] = await pipeline('translation', lang.translateModel, {
+                progress_callback: progressLogger('Traduction')
+            });
+        } catch (modelErr) {
+            throw new Error(`Le modèle de traduction pour "${lang.name}" n'a pas pu être chargé (${modelErr.message || modelErr}). Cette langue n'est peut-être pas encore disponible gratuitement — essayez-en une autre.`);
+        }
+    }
+    const translator = translators[lang.bcp47];
+    log('Traduction en cours...');
+    const chunks = splitIntoChunks(englishText);
+    let translatedText = '';
+    for (let i = 0; i < chunks.length; i++) {
+        log(`Traduction du segment ${i + 1}/${chunks.length}...`);
+        const result = await translator(chunks[i], { max_new_tokens: 512 });
+        translatedText += (translatedText ? ' ' : '') + result[0].translation_text;
+    }
+    frenchTextEl.value = translatedText;
+    log('Traduction terminée !', 'ok');
+
+    downloadFrBtn.disabled = false;
+    copyFrBtn.disabled = false;
+    speakBtn.disabled = false;
+    if (lang.ttsModel) {
+        aiVoiceBtn.disabled = false;
+        if (selectedFile && selectedFile.type.startsWith('video/')) {
+            oneClickVideoBtn.disabled = false;
+        }
+    }
+}
+
+// --- Pipeline principal : décodage -> transcription -> traduction ---
+
+async function run() {
+    if (!tryStart()) return;
+    startBtn.disabled = true;
+    fileInput.disabled = true;
+    englishTextEl.value = '';
+    frenchTextEl.value = '';
+    downloadEnBtn.disabled = true;
+    downloadFrBtn.disabled = true;
+    copyEnBtn.disabled = true;
+    copyFrBtn.disabled = true;
+    speakBtn.disabled = true;
+    aiVoiceBtn.disabled = true;
+    aiDownloadBtn.disabled = true;
+    aiAudioPlayer.style.display = 'none';
+    currentWavBlob = null;
+    dubVideoBtn.disabled = true;
+    dubDownloadBtn.disabled = true;
+    oneClickVideoBtn.disabled = true;
+    dubVideoPlayer.style.display = 'none';
+    currentDubBlob = null;
+    setProgress(5);
+
+    try {
+        log('Décodage du fichier audio...');
+        const audioBuffer = await extractAudioBufferFromFile(selectedFile);
+        log(`Audio décodé : ${audioBuffer.duration.toFixed(1)}s, ${audioBuffer.sampleRate} Hz`, 'ok');
+        if (audioBuffer.duration > 600) {
+            log("Fichier long (> 10 min) : le traitement dans le navigateur peut être lent.", 'err');
+        }
+        setProgress(20);
+
+        log('Ré-échantillonnage à 16 kHz mono...');
+        const samples = await resampleTo16kHzMono(audioBuffer);
+        setProgress(30);
+
+        const quality = qualitySelect.value;
+        const modelName = QUALITY_MODELS[quality];
+        if (!transcriber || loadedQuality !== quality) {
+            log(`Chargement du modèle de reconnaissance vocale (${modelName}, mis en cache après la 1ère fois)...`);
+            transcriber = await pipeline('automatic-speech-recognition', modelName, {
+                progress_callback: progressLogger('Whisper')
+            });
+            loadedQuality = quality;
+        }
+        setProgress(45);
+        log('Transcription en cours...');
+        const asrOutput = await transcriber(samples, { chunk_length_s: 30, stride_length_s: 5 });
+        const englishText = (asrOutput.text || '').trim();
+        englishTextEl.value = englishText || '(aucun texte détecté)';
+        log('Transcription terminée.', 'ok');
+        setProgress(60);
+
+        if (!englishText) {
+            log("Aucun texte n'a pu être transcrit depuis ce fichier.", 'err');
+            setProgress(0);
+            return;
+        }
+        downloadEnBtn.disabled = false;
+        copyEnBtn.disabled = false;
+
+        await translateEnglishText(englishText);
+        setProgress(100);
+    } catch (err) {
+        console.error(err);
+        log(`Erreur : ${err.message || err}`, 'err');
+        setProgress(0);
+    } finally {
+        startBtn.disabled = false;
+        fileInput.disabled = false;
+        busy = false;
+    }
+}
+
+startBtn.addEventListener('click', run);
+downloadEnBtn.addEventListener('click', () => downloadText(englishTextEl.value, 'transcription-anglais.txt'));
+downloadFrBtn.addEventListener('click', () => downloadText(frenchTextEl.value, `traduction-${langSelect.value}.txt`));
+
+async function copyToClipboard(text, btn) {
+    if (!text) return;
+    try {
+        await navigator.clipboard.writeText(text);
+        const original = btn.textContent;
+        btn.textContent = '✅ Copié !';
+        setTimeout(() => { btn.textContent = original; }, 1500);
+    } catch (err) {
+        log("Impossible de copier automatiquement (permission navigateur refusée) — sélectionnez le texte manuellement.", 'err');
+    }
+}
+
+async function pasteFromClipboard(textarea) {
+    try {
+        const text = await navigator.clipboard.readText();
+        textarea.value = text;
+        textarea.dispatchEvent(new Event('input'));
+    } catch (err) {
+        log("Impossible de coller automatiquement (le navigateur exige une connexion sécurisée https:// ou localhost pour cette action) — collez avec Ctrl+V / Cmd+V directement dans le champ.", 'err');
+    }
+}
+
+copyEnBtn.addEventListener('click', () => copyToClipboard(englishTextEl.value, copyEnBtn));
+copyFrBtn.addEventListener('click', () => copyToClipboard(frenchTextEl.value, copyFrBtn));
+pasteEnBtn.addEventListener('click', () => pasteFromClipboard(englishTextEl));
+pasteFrBtn.addEventListener('click', () => pasteFromClipboard(frenchTextEl));
+
+englishTextEl.addEventListener('input', () => {
+    const hasText = englishTextEl.value.trim().length > 0;
+    downloadEnBtn.disabled = !hasText;
+    copyEnBtn.disabled = !hasText;
+});
+
+translateTextBtn.addEventListener('click', async () => {
+    const text = englishTextEl.value.trim();
+    if (!text) {
+        log("Collez ou saisissez d'abord un texte anglais à traduire.", 'err');
+        return;
+    }
+    if (!tryStart()) return;
+    translateTextBtn.disabled = true;
+    setProgress(50);
+    try {
+        await translateEnglishText(text);
+        setProgress(100);
+    } catch (err) {
+        console.error(err);
+        log(`Erreur : ${err.message || err}`, 'err');
+        setProgress(0);
+    } finally {
+        translateTextBtn.disabled = false;
+        busy = false;
+    }
+});
+
+// --- Voix IA neuronale (fichier audio réel, téléchargeable) ---
+
+const VOICE_STYLES = {
+    normal: 1.0,
+    homme: 0.82,
+    femme: 1.18,
+    enfant_garcon: 1.35,
+    enfant_fille: 1.5
+};
+
+function applyPitchStyle(samples, styleKey) {
+    const factor = VOICE_STYLES[styleKey] || 1.0;
+    if (factor === 1.0) return samples;
+    const newLength = Math.round(samples.length / factor);
+    const result = new Float32Array(newLength);
+    for (let i = 0; i < newLength; i++) {
+        const srcIndex = i * factor;
+        const i0 = Math.floor(srcIndex);
+        const i1 = Math.min(i0 + 1, samples.length - 1);
+        const frac = srcIndex - i0;
+        result[i] = samples[i0] * (1 - frac) + samples[i1] * frac;
+    }
+    return result;
+}
+
+function concatFloat32(arrays, gapSeconds, sampleRate) {
+    const gapSamples = Math.round(gapSeconds * sampleRate);
+    let total = 0;
+    arrays.forEach(a => { total += a.length + gapSamples; });
+    const result = new Float32Array(total);
+    let offset = 0;
+    arrays.forEach(a => {
+        result.set(a, offset);
+        offset += a.length + gapSamples;
+    });
+    return result;
+}
+
+function encodeWAV(samples, sampleRate) {
+    const buffer = new ArrayBuffer(44 + samples.length * 2);
+    const view = new DataView(buffer);
+
+    function writeString(offset, str) {
+        for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+    }
+
+    writeString(0, 'RIFF');
+    view.setUint32(4, 36 + samples.length * 2, true);
+    writeString(8, 'WAVE');
+    writeString(12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, 1, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * 2, true);
+    view.setUint16(32, 2, true);
+    view.setUint16(34, 16, true);
+    writeString(36, 'data');
+    view.setUint32(40, samples.length * 2, true);
+
+    let offset = 44;
+    for (let i = 0; i < samples.length; i++, offset += 2) {
+        const s = Math.max(-1, Math.min(1, samples[i]));
+        view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+    }
+    return new Blob([view], { type: 'audio/wav' });
+}
+
+async function generateAiVoice() {
+    const text = frenchTextEl.value;
+    if (!text) return false;
+
+    aiDownloadBtn.disabled = true;
+    aiAudioPlayer.style.display = 'none';
+    currentWavBlob = null;
+    // Toute vidéo doublée déjà générée référence l'ancien audio : elle devient
+    // obsolète dès qu'on regénère la voix (nouveau style/nouvelle langue).
+    currentDubBlob = null;
+    dubDownloadBtn.disabled = true;
+    dubVideoPlayer.style.display = 'none';
+    if (currentDubVideoUrl) { URL.revokeObjectURL(currentDubVideoUrl); currentDubVideoUrl = null; }
+
+    try {
+        const lang = currentLang();
+        if (!lang.ttsModel) {
+            log(`Pas de voix IA neuronale disponible pour ${lang.name}.`, 'err');
+            return false;
+        }
+        if (!synthesizers[lang.bcp47]) {
+            log(`Chargement du modèle de voix IA (${lang.ttsModel}, mis en cache après la 1ère fois)...`);
+            synthesizers[lang.bcp47] = await pipeline('text-to-speech', lang.ttsModel, {
+                progress_callback: progressLogger('Voix IA')
+            });
+        }
+        const synthesizer = synthesizers[lang.bcp47];
+        const chunks = splitIntoChunks(text, 300);
+        const buffers = [];
+        let sampleRate = 16000;
+        for (let i = 0; i < chunks.length; i++) {
+            log(`Génération de la voix — segment ${i + 1}/${chunks.length}...`);
+            const output = await synthesizer(chunks[i]);
+            buffers.push(output.audio);
+            sampleRate = output.sampling_rate;
+        }
+        const merged = concatFloat32(buffers, 0.35, sampleRate);
+        const styled = applyPitchStyle(merged, voiceStyleSelect.value);
+        currentWavBlob = encodeWAV(styled, sampleRate);
+        if (currentAiAudioUrl) URL.revokeObjectURL(currentAiAudioUrl);
+        currentAiAudioUrl = URL.createObjectURL(currentWavBlob);
+        aiAudioPlayer.src = currentAiAudioUrl;
+        aiAudioPlayer.style.display = 'block';
+        aiDownloadBtn.disabled = false;
+        if (selectedFile && selectedFile.type.startsWith('video/')) {
+            dubVideoBtn.disabled = false;
+        }
+        log('Audio généré avec succès !', 'ok');
+        return true;
+    } catch (err) {
+        console.error(err);
+        log(`Erreur lors de la génération de la voix IA : ${err.message || err}`, 'err');
+        return false;
+    }
+}
+
+aiVoiceBtn.addEventListener('click', async () => {
+    if (!tryStart()) return;
+    aiVoiceBtn.disabled = true;
+    try {
+        await generateAiVoice();
+    } finally {
+        aiVoiceBtn.disabled = false;
+        busy = false;
+    }
+});
+
+aiDownloadBtn.addEventListener('click', () => {
+    if (!currentWavBlob) return;
+    const url = URL.createObjectURL(currentWavBlob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `voix-${langSelect.value}-${voiceStyleSelect.value}.wav`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+});
+
+// --- Vidéo doublée (remplace la piste audio par la voix française) ---
+
+async function buildDubbedVideo(videoFile, wavBlob) {
+    const videoUrl = URL.createObjectURL(videoFile);
+    const video = document.createElement('video');
+    video.src = videoUrl;
+    video.muted = true;
+    video.playsInline = true;
+    await new Promise((resolve, reject) => {
+        video.addEventListener('loadedmetadata', resolve, { once: true });
+        video.addEventListener('error', () => reject(new Error("Impossible de charger la vidéo d'origine.")), { once: true });
+    });
+
+    const videoStream = video.captureStream ? video.captureStream() : video.mozCaptureStream();
+    const videoTrack = videoStream && videoStream.getVideoTracks()[0];
+    if (!videoTrack) throw new Error("Impossible de récupérer le flux vidéo (captureStream non supporté).");
+
+    const audioUrl = URL.createObjectURL(wavBlob);
+    const audioEl = document.createElement('audio');
+    audioEl.src = audioUrl;
+    await new Promise((resolve, reject) => {
+        audioEl.addEventListener('loadedmetadata', resolve, { once: true });
+        audioEl.addEventListener('error', () => reject(new Error("Impossible de charger l'audio français.")), { once: true });
+    });
+
+    const audioStream = audioEl.captureStream ? audioEl.captureStream() : audioEl.mozCaptureStream();
+    const audioTrack = audioStream && audioStream.getAudioTracks()[0];
+    if (!audioTrack) throw new Error("Impossible de récupérer la piste audio française (captureStream non supporté).");
+
+    const combined = new MediaStream([videoTrack, audioTrack]);
+    const mimeType = (window.MediaRecorder && MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus'))
+        ? 'video/webm;codecs=vp9,opus'
+        : 'video/webm';
+    const recorder = new MediaRecorder(combined, { mimeType });
+    const chunks = [];
+    recorder.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
+    const stopped = new Promise(resolve => { recorder.onstop = resolve; });
+
+    recorder.start();
+    await Promise.all([video.play(), audioEl.play()]);
+
+    const maxDuration = Math.max(video.duration || 0, audioEl.duration || 0);
+    await new Promise(resolve => {
+        let done = false;
+        const finish = () => { if (!done) { done = true; resolve(); } };
+        video.onended = finish;
+        setTimeout(finish, (isFinite(maxDuration) ? maxDuration : 600) * 1000 + 2000);
+    });
+
+    video.pause();
+    audioEl.pause();
+    recorder.stop();
+    await stopped;
+
+    URL.revokeObjectURL(videoUrl);
+    URL.revokeObjectURL(audioUrl);
+
+    return new Blob(chunks, { type: 'video/webm' });
+}
+
+async function generateDubbedVideo() {
+    if (!selectedFile || !currentWavBlob) return false;
+    dubVideoPlayer.style.display = 'none';
+    currentDubBlob = null;
+    try {
+        log('Génération de la vidéo doublée (lecture en temps réel)...');
+        currentDubBlob = await buildDubbedVideo(selectedFile, currentWavBlob);
+        if (currentDubVideoUrl) URL.revokeObjectURL(currentDubVideoUrl);
+        currentDubVideoUrl = URL.createObjectURL(currentDubBlob);
+        dubVideoPlayer.src = currentDubVideoUrl;
+        dubVideoPlayer.style.display = 'block';
+        dubDownloadBtn.disabled = false;
+        log('Vidéo doublée générée avec succès !', 'ok');
+        return true;
+    } catch (err) {
+        console.error(err);
+        log(`Erreur lors de la génération de la vidéo doublée : ${err.message || err}`, 'err');
+        return false;
+    }
+}
+
+function downloadBlob(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+dubVideoBtn.addEventListener('click', async () => {
+    if (!tryStart()) return;
+    dubVideoBtn.disabled = true;
+    dubDownloadBtn.disabled = true;
+    try {
+        await generateDubbedVideo();
+    } finally {
+        dubVideoBtn.disabled = false;
+        busy = false;
+    }
+});
+
+dubDownloadBtn.addEventListener('click', () => {
+    if (!currentDubBlob) return;
+    downloadBlob(currentDubBlob, `video-doublee-${langSelect.value}.webm`);
+});
+
+// --- Bouton unique : traduire + télécharger la vidéo en une seule action ---
+oneClickVideoBtn.addEventListener('click', async () => {
+    if (!selectedFile || !frenchTextEl.value) {
+        log("Lancez d'abord la traduction (bouton \"Traduire\") avant de générer la vidéo.", 'err');
+        return;
+    }
+    const lang = currentLang();
+    if (!lang.ttsModel) {
+        log(`Vidéo traduite indisponible pour ${lang.name} (pas de voix IA neuronale).`, 'err');
+        return;
+    }
+    if (!tryStart()) return;
+
+    oneClickVideoBtn.disabled = true;
+    try {
+        if (!currentWavBlob) {
+            log('Étape 1/2 : génération de la voix...');
+            const voiceOk = await generateAiVoice();
+            if (!voiceOk || !currentWavBlob) {
+                log('Impossible de générer la voix — vidéo traduite annulée.', 'err');
+                return;
+            }
+        }
+        log('Étape 2/2 : génération de la vidéo doublée...');
+        const videoOk = await generateDubbedVideo();
+        if (videoOk && currentDubBlob) {
+            downloadBlob(currentDubBlob, `video-traduite-${langSelect.value}.webm`);
+            log('Vidéo traduite téléchargée !', 'ok');
+        }
+    } finally {
+        oneClickVideoBtn.disabled = false;
+        busy = false;
+    }
+});
+
+// --- Voix du navigateur (lecture instantanée) ---
+
+let currentVoices = [];
+
+function loadVoices() {
+    if (typeof speechSynthesis === 'undefined') return;
+    const lang = currentLang();
+    const voices = speechSynthesis.getVoices();
+    currentVoices = voices.filter(v => v.lang && v.lang.toLowerCase().startsWith(lang.bcp47));
+    currentVoices.sort((a, b) => {
+        const score = v => /google|natural|neural/i.test(v.name) ? 0 : 1;
+        return score(a) - score(b);
+    });
+
+    voiceSelect.innerHTML = '';
+    if (!currentVoices.length) {
+        const opt = document.createElement('option');
+        opt.textContent = `Aucune voix "${lang.name}" trouvée sur cet appareil`;
+        voiceSelect.appendChild(opt);
+        return;
+    }
+    currentVoices.forEach((v, i) => {
+        const opt = document.createElement('option');
+        opt.value = i;
+        opt.textContent = `${v.name} (${v.lang})`;
+        voiceSelect.appendChild(opt);
+    });
+}
+
+loadVoices();
+if (typeof speechSynthesis !== 'undefined' && speechSynthesis.onvoiceschanged !== undefined) {
+    speechSynthesis.onvoiceschanged = loadVoices;
+}
+
+speakBtn.addEventListener('click', () => {
+    const text = frenchTextEl.value;
+    if (!text) return;
+    const lang = currentLang();
+    speechSynthesis.cancel();
+    const utter = new SpeechSynthesisUtterance(text);
+    const idx = voiceSelect.value;
+    if (currentVoices[idx]) utter.voice = currentVoices[idx];
+    utter.lang = lang.bcp47;
+    utter.rate = 0.95;
+    utter.onend = () => stopBtn.disabled = true;
+    speechSynthesis.speak(utter);
+    stopBtn.disabled = false;
+});
+
+stopBtn.addEventListener('click', () => {
+    speechSynthesis.cancel();
+    stopBtn.disabled = true;
+});
+</script>
+
+</body>
+</html>

@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Abonnement — Traducteur Audio/Vidéo</title>
+    <style>
+        :root {
+            --orange: #ff7900;
+            --black: #000000;
+            --grey: #f4f4f4;
+            --dark-grey: #333;
+            --red: #c62828;
+        }
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            background-color: var(--grey);
+            margin: 0;
+            color: var(--dark-grey);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+        .card {
+            background: white;
+            padding: 35px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+        }
+        h1 {
+            font-size: 1.3rem;
+            border-bottom: 4px solid var(--orange);
+            padding-bottom: 10px;
+        }
+        .price {
+            font-size: 2.4rem;
+            font-weight: bold;
+            color: var(--orange);
+            margin: 16px 0 4px;
+        }
+        .price span { font-size: 1rem; color: #777; }
+        ul {
+            text-align: left;
+            margin: 20px 0;
+            padding-left: 20px;
+            font-size: 0.9rem;
+            color: #555;
+        }
+        button {
+            width: 100%;
+            background-color: var(--orange);
+            border: none;
+            color: white;
+            padding: 14px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 1rem;
+            border-radius: 6px;
+        }
+        button:hover:not(:disabled) { background-color: #e06d00; }
+        button:disabled { background-color: #ccc; cursor: not-allowed; }
+        .msg {
+            margin-top: 14px;
+            font-size: 0.85rem;
+            color: var(--red);
+        }
+        .back {
+            display: block;
+            text-align: center;
+            margin-top: 16px;
+            font-size: 0.8rem;
+            color: #888;
+        }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h1>Abonnement Traducteur IA</h1>
+    <div class="price">9,99&euro; <span>/ mois</span></div>
+    <ul>
+        <li>Transcription audio/vidéo illimitée</li>
+        <li>Traduction anglais &rarr; français</li>
+        <li>Voix IA neuronale téléchargeable (.wav)</li>
+        <li>Traitement 100% privé, dans votre navigateur</li>
+    </ul>
+    <button id="subscribeBtn">S'abonner</button>
+    <p class="msg" id="msg"></p>
+    <a class="back" href="index.html">&larr; Retour au Dashboard</a>
+</div>
+
+<script type="module">
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './supabase-config.js';
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const subscribeBtn = document.getElementById('subscribeBtn');
+const msgEl = document.getElementById('msg');
+
+subscribeBtn.addEventListener('click', async () => {
+    subscribeBtn.disabled = true;
+    msgEl.textContent = '';
+
+    try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+            window.location.href = 'login.html';
+            return;
+        }
+
+        const res = await fetch('/api/create-checkout-session', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: session.user.id, email: session.user.email })
+        });
+        const data = await res.json();
+        if (data.url) {
+            window.location.href = data.url;
+        } else {
+            throw new Error(data.error || 'Impossible de démarrer le paiement.');
+        }
+    } catch (err) {
+        msgEl.textContent = err.message || 'Une erreur est survenue.';
+    } finally {
+        subscribeBtn.disabled = false;
+    }
+});
+</script>
+
+</body>
+</html>
