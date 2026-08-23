@@ -579,6 +579,21 @@ let transcriber = null;
 let loadedQuality = null;
 let currentDubBlob = null;
 let currentWavBlob = null;
+let currentAiAudioUrl = null;
+let currentDubVideoUrl = null;
+
+// Verrou global : évite que deux opérations (transcription, génération de voix,
+// génération de vidéo) tournent en même temps et se marchent dessus en écrivant
+// sur les mêmes variables partagées (currentWavBlob, currentDubBlob, selectedFile...).
+let busy = false;
+function tryStart() {
+    if (busy) {
+        log("Une opération est déjà en cours — attendez qu'elle se termine.", 'err');
+        return false;
+    }
+    busy = true;
+    return true;
+}
 
 function populateLangSelect() {
     Object.keys(LANGUAGES).forEach(code => {
@@ -656,6 +671,10 @@ dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover
 dropZone.addEventListener('drop', e => {
     e.preventDefault();
     dropZone.classList.remove('dragover');
+    if (busy) {
+        log("Une opération est déjà en cours — attendez qu'elle se termine avant de changer de fichier.", 'err');
+        return;
+    }
     if (e.dataTransfer.files.length) {
         selectedFile = e.dataTransfer.files[0];
         onFileSelected();
@@ -681,6 +700,7 @@ function onFileSelected() {
     oneClickVideoBtn.disabled = true;
     dubVideoPlayer.style.display = 'none';
     currentDubBlob = null;
+    if (currentDubVideoUrl) { URL.revokeObjectURL(currentDubVideoUrl); currentDubVideoUrl = null; }
 }
 
 // --- Extraction / décodage audio ---
@@ -788,6 +808,7 @@ function progressLogger(prefix) {
 // --- Pipeline principal : décodage -> transcription -> traduction ---
 
 async function run() {
+    if (!tryStart()) return;
     startBtn.disabled = true;
     fileInput.disabled = true;
     englishTextEl.value = '';
@@ -883,6 +904,7 @@ async function run() {
     } finally {
         startBtn.disabled = false;
         fileInput.disabled = false;
+        busy = false;
     }
 }
 
@@ -965,6 +987,12 @@ async function generateAiVoice() {
     aiDownloadBtn.disabled = true;
     aiAudioPlayer.style.display = 'none';
     currentWavBlob = null;
+    // Toute vidéo doublée déjà générée référence l'ancien audio : elle devient
+    // obsolète dès qu'on regénère la voix (nouveau style/nouvelle langue).
+    currentDubBlob = null;
+    dubDownloadBtn.disabled = true;
+    dubVideoPlayer.style.display = 'none';
+    if (currentDubVideoUrl) { URL.revokeObjectURL(currentDubVideoUrl); currentDubVideoUrl = null; }
 
     try {
         const lang = currentLang();
@@ -991,8 +1019,9 @@ async function generateAiVoice() {
         const merged = concatFloat32(buffers, 0.35, sampleRate);
         const styled = applyPitchStyle(merged, voiceStyleSelect.value);
         currentWavBlob = encodeWAV(styled, sampleRate);
-        const url = URL.createObjectURL(currentWavBlob);
-        aiAudioPlayer.src = url;
+        if (currentAiAudioUrl) URL.revokeObjectURL(currentAiAudioUrl);
+        currentAiAudioUrl = URL.createObjectURL(currentWavBlob);
+        aiAudioPlayer.src = currentAiAudioUrl;
         aiAudioPlayer.style.display = 'block';
         aiDownloadBtn.disabled = false;
         if (selectedFile && selectedFile.type.startsWith('video/')) {
@@ -1008,11 +1037,13 @@ async function generateAiVoice() {
 }
 
 aiVoiceBtn.addEventListener('click', async () => {
+    if (!tryStart()) return;
     aiVoiceBtn.disabled = true;
     try {
         await generateAiVoice();
     } finally {
         aiVoiceBtn.disabled = false;
+        busy = false;
     }
 });
 
@@ -1095,8 +1126,9 @@ async function generateDubbedVideo() {
     try {
         log('Génération de la vidéo doublée (lecture en temps réel)...');
         currentDubBlob = await buildDubbedVideo(selectedFile, currentWavBlob);
-        const url = URL.createObjectURL(currentDubBlob);
-        dubVideoPlayer.src = url;
+        if (currentDubVideoUrl) URL.revokeObjectURL(currentDubVideoUrl);
+        currentDubVideoUrl = URL.createObjectURL(currentDubBlob);
+        dubVideoPlayer.src = currentDubVideoUrl;
         dubVideoPlayer.style.display = 'block';
         dubDownloadBtn.disabled = false;
         log('Vidéo doublée générée avec succès !', 'ok');
@@ -1120,12 +1152,14 @@ function downloadBlob(blob, filename) {
 }
 
 dubVideoBtn.addEventListener('click', async () => {
+    if (!tryStart()) return;
     dubVideoBtn.disabled = true;
     dubDownloadBtn.disabled = true;
     try {
         await generateDubbedVideo();
     } finally {
         dubVideoBtn.disabled = false;
+        busy = false;
     }
 });
 
@@ -1145,6 +1179,7 @@ oneClickVideoBtn.addEventListener('click', async () => {
         log(`Vidéo traduite indisponible pour ${lang.name} (pas de voix IA neuronale).`, 'err');
         return;
     }
+    if (!tryStart()) return;
 
     oneClickVideoBtn.disabled = true;
     try {
@@ -1164,6 +1199,7 @@ oneClickVideoBtn.addEventListener('click', async () => {
         }
     } finally {
         oneClickVideoBtn.disabled = false;
+        busy = false;
     }
 });
 
