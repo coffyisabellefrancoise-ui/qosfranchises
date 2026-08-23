@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Traducteur Audio/Vidéo EN → FR</title>
+    <title>Traducteur Audio/Vidéo Multilingue</title>
     <style>
         :root {
             --orange: #ff7900;
@@ -232,8 +232,8 @@
 <body>
 
 <header>
-    <h1>🎙️ TRADUCTEUR AUDIO / VIDÉO — Anglais → Français</h1>
-    <p>Transcription, traduction et doublage vocal, 100% dans le navigateur</p>
+    <h1>🎙️ TRADUCTEUR AUDIO / VIDÉO — Anglais → votre langue</h1>
+    <p>Transcription, traduction (20+ langues) et doublage vocal, 100% dans le navigateur</p>
     <a href="index.html">&larr; Retour au Dashboard Qualité</a>
     &nbsp;|&nbsp;
     <a href="#" id="logoutLink">Se déconnecter</a>
@@ -259,12 +259,19 @@
             </select>
         </div>
 
+        <div class="field">
+            <label for="langSelect">Traduire vers</label>
+            <select id="langSelect"></select>
+            <div class="hint note" id="langAvailabilityNote" style="margin-top:2px;"></div>
+        </div>
+
         <p class="note">
             Tout le traitement (reconnaissance vocale + traduction + génération de la voix) se fait localement
             dans votre navigateur grâce à des modèles d'IA téléchargés une seule fois (mis en cache). Pour une
-            vidéo, l'extraction de la piste audio prend à peu près la durée de la vidéo.
+            vidéo, l'extraction de la piste audio prend à peu près la durée de la vidéo. Certaines langues n'ont
+            pas encore de voix IA neuronale téléchargeable — la voix du navigateur reste disponible en secours.
         </p>
-        <button id="startBtn" disabled>Traduire en français</button>
+        <button id="startBtn" disabled>Traduire</button>
         <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
     </div>
 
@@ -280,18 +287,21 @@
     </div>
 
     <div class="card">
-        <h2>4. Traduction (français)</h2>
+        <h2 id="translationTitle">4. Traduction</h2>
         <textarea id="frenchText" readonly placeholder="La traduction apparaîtra ici..."></textarea>
-        <button id="downloadFrBtn" class="secondary" disabled>⬇ Télécharger le texte français (.txt)</button>
+        <button id="downloadFrBtn" class="secondary" disabled>⬇ Télécharger le texte traduit (.txt)</button>
 
-        <div class="voice-block">
+        <div class="voice-block" id="aiVoiceBlock">
             <h3>🧠 Voix IA neuronale — fichier audio téléchargeable</h3>
-            <button id="aiVoiceBtn" class="secondary" disabled>🎧 Générer l'audio français</button>
+            <button id="aiVoiceBtn" class="secondary" disabled>🎧 Générer l'audio</button>
             <button id="aiDownloadBtn" class="secondary" disabled>⬇ Télécharger l'audio (.wav)</button>
             <audio id="aiAudioPlayer" controls style="display:none;"></audio>
             <p class="note">
                 Génère un vrai fichier audio (.wav) de la traduction, avec une voix neuronale IA (modèle MMS-TTS),
                 sans permission particulière. Le premier appel télécharge le modèle de voix (une seule fois).
+            </p>
+            <p class="note" id="aiVoiceUnavailableNote" style="display:none; color:#c62828;">
+                Pas encore de voix IA neuronale gratuite pour cette langue — utilisez la voix du navigateur ci-dessous.
             </p>
         </div>
 
@@ -301,21 +311,22 @@
             <button id="dubDownloadBtn" class="secondary" disabled>⬇ Télécharger la vidéo (.webm)</button>
             <video id="dubVideoPlayer" controls style="display:none; width:100%; margin-top:10px;"></video>
             <p class="note">
-                Remplace la piste audio d'origine par la voix française générée ci-dessus et produit un fichier
-                vidéo téléchargeable. La génération tourne en temps réel (≈ la durée de la vidéo). La longueur de
-                la traduction parlée diffère souvent de l'audio d'origine : ce n'est pas un doublage synchronisé
-                lèvres/voix comme HeyGen, seulement un remplacement de la bande audio.
+                Remplace la piste audio d'origine par la voix générée ci-dessus et produit un fichier vidéo
+                téléchargeable. La génération tourne en temps réel (≈ la durée de la vidéo). La longueur de la
+                traduction parlée diffère souvent de l'audio d'origine : ce n'est pas un doublage synchronisé
+                lèvres/voix comme HeyGen, seulement un remplacement de la bande audio. Nécessite la voix IA
+                neuronale ci-dessus (indisponible pour certaines langues).
             </p>
         </div>
 
         <div class="voice-block">
             <h3>🔊 Voix du navigateur — lecture instantanée</h3>
             <select id="voiceSelect"></select><br>
-            <button id="speakBtn" class="secondary" disabled>🔊 Écouter en français</button>
+            <button id="speakBtn" class="secondary" disabled>🔊 Écouter</button>
             <button id="stopBtn" class="secondary" disabled>⏹ Stop</button>
             <p class="note">
-                Utilise les voix françaises déjà installées sur votre appareil/navigateur (pratique et instantané,
-                mais non téléchargeable en fichier audio).
+                Utilise les voix déjà installées sur votre appareil/navigateur pour la langue choisie (pratique et
+                instantané, mais non téléchargeable en fichier audio).
             </p>
         </div>
     </div>
@@ -365,10 +376,46 @@ const QUALITY_MODELS = {
     precis: 'Xenova/whisper-small.en'
 };
 
+// Langues cibles disponibles. ttsModel: null = pas de voix IA neuronale gratuite
+// connue pour l'instant pour cette langue (secours automatique sur la voix du
+// navigateur). Les modèles de traduction sont des ports ONNX (Xenova) des modèles
+// Helsinki-NLP Opus-MT ; si un modèle venait à ne pas être disponible, une erreur
+// claire s'affiche dans le journal plutôt que de planter silencieusement.
+const LANGUAGES = {
+    fr: { name: 'Français', bcp47: 'fr', translateModel: 'Xenova/opus-mt-en-fr', ttsModel: 'Xenova/mms-tts-fra' },
+    es: { name: 'Espagnol', bcp47: 'es', translateModel: 'Xenova/opus-mt-en-es', ttsModel: 'Xenova/mms-tts-spa' },
+    de: { name: 'Allemand', bcp47: 'de', translateModel: 'Xenova/opus-mt-en-de', ttsModel: 'Xenova/mms-tts-deu' },
+    pt: { name: 'Portugais', bcp47: 'pt', translateModel: 'Xenova/opus-mt-en-pt', ttsModel: 'Xenova/mms-tts-por' },
+    it: { name: 'Italien', bcp47: 'it', translateModel: 'Xenova/opus-mt-en-it', ttsModel: null },
+    ru: { name: 'Russe', bcp47: 'ru', translateModel: 'Xenova/opus-mt-en-ru', ttsModel: 'Xenova/mms-tts-rus' },
+    ar: { name: 'Arabe', bcp47: 'ar', translateModel: 'Xenova/opus-mt-en-ar', ttsModel: 'Xenova/mms-tts-ara' },
+    hi: { name: 'Hindi', bcp47: 'hi', translateModel: 'Xenova/opus-mt-en-hi', ttsModel: 'Xenova/mms-tts-hin' },
+    bn: { name: 'Bengali', bcp47: 'bn', translateModel: 'Xenova/opus-mt-en-bn', ttsModel: null },
+    ur: { name: 'Ourdou', bcp47: 'ur', translateModel: 'Xenova/opus-mt-en-ur', ttsModel: null },
+    zh: { name: 'Chinois (mandarin)', bcp47: 'zh', translateModel: 'Xenova/opus-mt-en-zh', ttsModel: null },
+    ja: { name: 'Japonais', bcp47: 'ja', translateModel: 'Xenova/opus-mt-en-jap', ttsModel: null },
+    ko: { name: 'Coréen', bcp47: 'ko', translateModel: 'Xenova/opus-mt-en-ko', ttsModel: 'Xenova/mms-tts-kor' },
+    vi: { name: 'Vietnamien', bcp47: 'vi', translateModel: 'Xenova/opus-mt-en-vi', ttsModel: 'Xenova/mms-tts-vie' },
+    tr: { name: 'Turc', bcp47: 'tr', translateModel: 'Xenova/opus-mt-en-trk', ttsModel: null },
+    id: { name: 'Indonésien', bcp47: 'id', translateModel: 'Xenova/opus-mt-en-id', ttsModel: null },
+    sw: { name: 'Swahili', bcp47: 'sw', translateModel: 'Xenova/opus-mt-en-swc', ttsModel: null },
+    ta: { name: 'Tamoul', bcp47: 'ta', translateModel: 'Xenova/opus-mt-en-dra', ttsModel: null },
+    pl: { name: 'Polonais', bcp47: 'pl', translateModel: 'Xenova/opus-mt-en-sla', ttsModel: null },
+    nl: { name: 'Néerlandais', bcp47: 'nl', translateModel: 'Xenova/opus-mt-en-nl', ttsModel: null }
+};
+
+const translators = {};
+const synthesizers = {};
+
 const dropZone = document.getElementById('dropZone');
 const fileInput = document.getElementById('fileInput');
 const fileNameEl = document.getElementById('fileName');
 const qualitySelect = document.getElementById('qualitySelect');
+const langSelect = document.getElementById('langSelect');
+const langAvailabilityNote = document.getElementById('langAvailabilityNote');
+const translationTitle = document.getElementById('translationTitle');
+const aiVoiceBlock = document.getElementById('aiVoiceBlock');
+const aiVoiceUnavailableNote = document.getElementById('aiVoiceUnavailableNote');
 const startBtn = document.getElementById('startBtn');
 const progressFill = document.getElementById('progressFill');
 const logEl = document.getElementById('log');
@@ -390,10 +437,45 @@ const dubVideoPlayer = document.getElementById('dubVideoPlayer');
 let selectedFile = null;
 let transcriber = null;
 let loadedQuality = null;
-let translator = null;
 let currentDubBlob = null;
-let synthesizer = null;
 let currentWavBlob = null;
+
+function populateLangSelect() {
+    Object.keys(LANGUAGES).forEach(code => {
+        const opt = document.createElement('option');
+        opt.value = code;
+        opt.textContent = LANGUAGES[code].name;
+        if (code === 'fr') opt.selected = true;
+        langSelect.appendChild(opt);
+    });
+}
+populateLangSelect();
+
+function currentLang() {
+    return LANGUAGES[langSelect.value];
+}
+
+function updateLangUI() {
+    const lang = currentLang();
+    translationTitle.textContent = `4. Traduction (${lang.name})`;
+    startBtn.textContent = `Traduire en ${lang.name}`;
+    if (lang.ttsModel) {
+        langAvailabilityNote.textContent = '';
+        aiVoiceBlock.style.display = 'block';
+        aiVoiceUnavailableNote.style.display = 'none';
+        aiVoiceBtn.style.display = 'inline-block';
+        aiDownloadBtn.style.display = 'inline-block';
+    } else {
+        langAvailabilityNote.textContent = 'Voix IA neuronale non disponible pour cette langue — la voix du navigateur sera utilisée.';
+        aiVoiceUnavailableNote.style.display = 'block';
+        aiVoiceBtn.style.display = 'none';
+        aiDownloadBtn.style.display = 'none';
+    }
+    loadVoices();
+}
+
+langSelect.addEventListener('change', updateLangUI);
+updateLangUI();
 
 function log(msg, cls) {
     const line = document.createElement('div');
@@ -617,28 +699,34 @@ async function run() {
         }
         downloadEnBtn.disabled = false;
 
-        if (!translator) {
-            log('Chargement du modèle de traduction EN→FR (mis en cache après la 1ère fois)...');
-            translator = await pipeline('translation', 'Xenova/opus-mt-en-fr', {
-                progress_callback: progressLogger('Traduction')
-            });
+        const lang = currentLang();
+        if (!translators[lang.bcp47]) {
+            log(`Chargement du modèle de traduction EN→${lang.name} (mis en cache après la 1ère fois)...`);
+            try {
+                translators[lang.bcp47] = await pipeline('translation', lang.translateModel, {
+                    progress_callback: progressLogger('Traduction')
+                });
+            } catch (modelErr) {
+                throw new Error(`Le modèle de traduction pour "${lang.name}" n'a pas pu être chargé (${modelErr.message || modelErr}). Cette langue n'est peut-être pas encore disponible gratuitement — essayez-en une autre.`);
+            }
         }
+        const translator = translators[lang.bcp47];
         setProgress(75);
         log('Traduction en cours...');
         const chunks = splitIntoChunks(englishText);
-        let frenchText = '';
+        let translatedText = '';
         for (let i = 0; i < chunks.length; i++) {
             log(`Traduction du segment ${i + 1}/${chunks.length}...`);
             const result = await translator(chunks[i], { max_new_tokens: 512 });
-            frenchText += (frenchText ? ' ' : '') + result[0].translation_text;
+            translatedText += (translatedText ? ' ' : '') + result[0].translation_text;
         }
-        frenchTextEl.value = frenchText;
+        frenchTextEl.value = translatedText;
         log('Traduction terminée !', 'ok');
         setProgress(100);
 
         downloadFrBtn.disabled = false;
         speakBtn.disabled = false;
-        aiVoiceBtn.disabled = false;
+        if (lang.ttsModel) aiVoiceBtn.disabled = false;
     } catch (err) {
         console.error(err);
         log(`Erreur : ${err.message || err}`, 'err');
@@ -651,7 +739,7 @@ async function run() {
 
 startBtn.addEventListener('click', run);
 downloadEnBtn.addEventListener('click', () => downloadText(englishTextEl.value, 'transcription-anglais.txt'));
-downloadFrBtn.addEventListener('click', () => downloadText(frenchTextEl.value, 'traduction-francais.txt'));
+downloadFrBtn.addEventListener('click', () => downloadText(frenchTextEl.value, `traduction-${langSelect.value}.txt`));
 
 // --- Voix IA neuronale (fichier audio réel, téléchargeable) ---
 
@@ -708,12 +796,18 @@ aiVoiceBtn.addEventListener('click', async () => {
     currentWavBlob = null;
 
     try {
-        if (!synthesizer) {
-            log('Chargement du modèle de voix IA française (MMS-TTS, mis en cache après la 1ère fois)...');
-            synthesizer = await pipeline('text-to-speech', 'Xenova/mms-tts-fra', {
+        const lang = currentLang();
+        if (!lang.ttsModel) {
+            log(`Pas de voix IA neuronale disponible pour ${lang.name}.`, 'err');
+            return;
+        }
+        if (!synthesizers[lang.bcp47]) {
+            log(`Chargement du modèle de voix IA (${lang.ttsModel}, mis en cache après la 1ère fois)...`);
+            synthesizers[lang.bcp47] = await pipeline('text-to-speech', lang.ttsModel, {
                 progress_callback: progressLogger('Voix IA')
             });
         }
+        const synthesizer = synthesizers[lang.bcp47];
         const chunks = splitIntoChunks(text, 300);
         const buffers = [];
         let sampleRate = 16000;
@@ -746,7 +840,7 @@ aiDownloadBtn.addEventListener('click', () => {
     const url = URL.createObjectURL(currentWavBlob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'voix-francaise.wav';
+    a.download = `voix-${langSelect.value}.wav`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -842,7 +936,7 @@ dubDownloadBtn.addEventListener('click', () => {
     const url = URL.createObjectURL(currentDubBlob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'video-doublee-francais.webm';
+    a.download = `video-doublee-${langSelect.value}.webm`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -851,24 +945,26 @@ dubDownloadBtn.addEventListener('click', () => {
 
 // --- Voix du navigateur (lecture instantanée) ---
 
-let frenchVoices = [];
+let currentVoices = [];
 
 function loadVoices() {
+    if (typeof speechSynthesis === 'undefined') return;
+    const lang = currentLang();
     const voices = speechSynthesis.getVoices();
-    frenchVoices = voices.filter(v => v.lang && v.lang.toLowerCase().startsWith('fr'));
-    frenchVoices.sort((a, b) => {
+    currentVoices = voices.filter(v => v.lang && v.lang.toLowerCase().startsWith(lang.bcp47));
+    currentVoices.sort((a, b) => {
         const score = v => /google|natural|neural/i.test(v.name) ? 0 : 1;
         return score(a) - score(b);
     });
 
     voiceSelect.innerHTML = '';
-    if (!frenchVoices.length) {
+    if (!currentVoices.length) {
         const opt = document.createElement('option');
-        opt.textContent = 'Aucune voix française trouvée sur cet appareil';
+        opt.textContent = `Aucune voix "${lang.name}" trouvée sur cet appareil`;
         voiceSelect.appendChild(opt);
         return;
     }
-    frenchVoices.forEach((v, i) => {
+    currentVoices.forEach((v, i) => {
         const opt = document.createElement('option');
         opt.value = i;
         opt.textContent = `${v.name} (${v.lang})`;
@@ -884,11 +980,12 @@ if (typeof speechSynthesis !== 'undefined' && speechSynthesis.onvoiceschanged !=
 speakBtn.addEventListener('click', () => {
     const text = frenchTextEl.value;
     if (!text) return;
+    const lang = currentLang();
     speechSynthesis.cancel();
     const utter = new SpeechSynthesisUtterance(text);
     const idx = voiceSelect.value;
-    if (frenchVoices[idx]) utter.voice = frenchVoices[idx];
-    utter.lang = 'fr-FR';
+    if (currentVoices[idx]) utter.voice = currentVoices[idx];
+    utter.lang = lang.bcp47;
     utter.rate = 0.95;
     utter.onend = () => stopBtn.disabled = true;
     speechSynthesis.speak(utter);
