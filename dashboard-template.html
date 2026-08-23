@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Modèle de Tableau de Bord — Simple &amp; Visuel</title>
+    <style>
+        .viz-root {
+            --brand: #ff7900;
+            --surface-1:      #fcfcfb;
+            --page-plane:     #f9f9f7;
+            --text-primary:   #0b0b0b;
+            --text-secondary: #52514e;
+            --text-muted:     #898781;
+            --gridline:       #e1e0d9;
+            --baseline:       #c3c2b7;
+            --good:           #0ca30c;
+            --good-wash:      #eaf7ea;
+            --critical:       #d03b3b;
+            --critical-wash:  #fbeaea;
+            --border:         rgba(11,11,11,0.10);
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+            background-color: var(--page-plane);
+            margin: 0;
+            color: var(--text-primary);
+        }
+
+        header {
+            background-color: var(--text-primary);
+            color: white;
+            padding: 22px 20px;
+            text-align: center;
+            border-bottom: 5px solid var(--brand);
+        }
+
+        header h1 { margin: 0 0 6px; font-size: 1.4rem; }
+        header p { margin: 0; opacity: 0.85; font-size: 0.9rem; }
+        header a { color: white; opacity: 0.85; font-size: 0.85rem; text-decoration: none; }
+        header a:hover { text-decoration: underline; }
+
+        .container {
+            max-width: 960px;
+            margin: 20px auto;
+            padding: 0 20px 40px;
+        }
+
+        .card {
+            background: var(--surface-1);
+            padding: 24px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+            margin-bottom: 20px;
+        }
+
+        .card h2 {
+            margin-top: 0;
+            font-size: 1.05rem;
+            border-left: 5px solid var(--brand);
+            padding-left: 10px;
+        }
+
+        .tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+        .tab-btn {
+            background: var(--page-plane);
+            border: 1px solid var(--border);
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: bold;
+            color: var(--text-secondary);
+        }
+        .tab-btn.active { background: var(--brand); color: white; border-color: var(--brand); }
+        .tab-panel { display: none; }
+        .tab-panel.active { display: block; }
+
+        table.editor {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 10px;
+        }
+        table.editor th {
+            text-align: left;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            padding: 6px 8px;
+            border-bottom: 1px solid var(--gridline);
+        }
+        table.editor td { padding: 4px 8px; }
+        table.editor input[type="text"], table.editor input[type="number"] {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 0.9rem;
+            box-sizing: border-box;
+        }
+        table.editor button.remove {
+            background: none;
+            border: none;
+            color: var(--critical);
+            font-size: 1.1rem;
+            cursor: pointer;
+        }
+
+        .field { margin: 14px 0; }
+        .field label { display: block; font-weight: bold; font-size: 0.85rem; margin-bottom: 6px; }
+        .field input[type="number"], .field input[type="color"], .field input[type="file"] {
+            padding: 8px;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            font-size: 0.9rem;
+        }
+        .field .hint { font-size: 0.78rem; color: var(--text-muted); margin-top: 4px; }
+
+        button.primary {
+            background-color: var(--brand);
+            border: none;
+            color: white;
+            padding: 12px 24px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 0.95rem;
+            border-radius: 6px;
+        }
+        button.primary:hover { filter: brightness(0.92); }
+
+        button.secondary {
+            background: white;
+            border: 2px solid var(--brand);
+            color: var(--brand);
+            padding: 10px 20px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 0.9rem;
+            border-radius: 6px;
+            margin-right: 8px;
+        }
+
+        button.add-row {
+            background: none;
+            border: 1px dashed var(--border);
+            color: var(--text-secondary);
+            padding: 8px 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+        }
+
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 14px;
+        }
+        .kpi-tile {
+            background: var(--page-plane);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 14px 16px;
+        }
+        .kpi-tile .label { font-size: 0.78rem; color: var(--text-muted); text-transform: uppercase; }
+        .kpi-tile .value { font-size: 1.6rem; font-weight: 600; margin-top: 4px; }
+
+        .legend { display: flex; gap: 18px; font-size: 0.82rem; color: var(--text-secondary); margin-top: 10px; }
+        .legend-item { display: flex; align-items: center; gap: 6px; }
+        .legend-swatch { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+
+        #chartTip {
+            position: absolute;
+            background: var(--text-primary);
+            color: white;
+            padding: 6px 10px;
+            border-radius: 6px;
+            font-size: 0.78rem;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.15s;
+            white-space: nowrap;
+            z-index: 10;
+        }
+
+        table.data-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+        table.data-table th {
+            text-align: left;
+            padding: 8px;
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            border-bottom: 1px solid var(--gridline);
+        }
+        table.data-table td { padding: 8px; border-bottom: 1px solid var(--gridline); }
+        table.data-table tr.status-good td:first-child { background: var(--good-wash); }
+        table.data-table tr.status-critical td:first-child { background: var(--critical-wash); }
+        table.data-table .status-icon { font-weight: bold; }
+        table.data-table .status-icon.good { color: var(--good); }
+        table.data-table .status-icon.critical { color: var(--critical); }
+
+        .empty-state { color: var(--text-muted); font-size: 0.9rem; text-align: center; padding: 20px; }
+
+        footer { text-align: center; padding: 20px; font-size: 0.8rem; color: var(--text-muted); }
+
+        @media print {
+            header a, .card:first-child, footer, .no-print { display: none !important; }
+            body { background: white; }
+            .card { box-shadow: none; border: 1px solid #ddd; }
+        }
+    </style>
+</head>
+<body class="viz-root">
+
+<header>
+    <h1>📊 Modèle de Tableau de Bord</h1>
+    <p>Collez vos données, le tableau de bord se construit tout seul — aucune formule à écrire</p>
+    <a href="index.html">&larr; Retour au Dashboard Qualité</a>
+</header>
+
+<div class="container">
+
+    <div class="card no-print">
+        <h2>1. Vos données</h2>
+
+        <div class="tabs">
+            <button class="tab-btn active" data-tab="manual">Saisie manuelle</button>
+            <button class="tab-btn" data-tab="csv">Importer un CSV</button>
+        </div>
+
+        <div class="tab-panel active" id="tab-manual">
+            <table class="editor" id="editorTable">
+                <thead>
+                    <tr><th>Catégorie</th><th>Valeur</th><th></th></tr>
+                </thead>
+                <tbody id="editorBody"></tbody>
+            </table>
+            <button class="add-row" id="addRowBtn">+ Ajouter une ligne</button>
+        </div>
+
+        <div class="tab-panel" id="tab-csv">
+            <input type="file" id="csvInput" accept=".csv,text/csv">
+            <p class="hint">Fichier avec 2 colonnes : Catégorie, Valeur (avec ou sans ligne d'en-tête).</p>
+        </div>
+
+        <div class="field">
+            <label for="objectiveInput">Objectif par catégorie (optionnel)</label>
+            <input type="number" id="objectiveInput" placeholder="ex: 100">
+            <div class="hint">Si renseigné, chaque catégorie sera marquée "Atteint" (vert) ou "Non atteint" (rouge).</div>
+        </div>
+
+        <div class="field">
+            <label for="brandColor">Couleur de votre marque</label>
+            <input type="color" id="brandColor" value="#ff7900">
+        </div>
+
+        <button class="primary" id="generateBtn">Générer le tableau de bord</button>
+    </div>
+
+    <div id="dashboardOutput" style="display:none;">
+        <div class="card">
+            <h2>2. Vue d'ensemble</h2>
+            <div class="kpi-grid" id="kpiGrid"></div>
+        </div>
+
+        <div class="card" style="position:relative;">
+            <h2>3. Graphique</h2>
+            <div id="chartContainer"></div>
+            <div class="legend" id="chartLegend"></div>
+            <div id="chartTip"></div>
+        </div>
+
+        <div class="card">
+            <h2>4. Tableau (vue accessible)</h2>
+            <table class="data-table" id="dataTable"></table>
+        </div>
+
+        <div class="card no-print">
+            <button class="secondary" id="printBtn">🖨️ Télécharger en PDF</button>
+            <button class="secondary" id="downloadCsvBtn">⬇ Télécharger les données (.csv)</button>
+        </div>
+    </div>
+
+    <div class="card" id="emptyState">
+        <p class="empty-state">Renseignez vos données ci-dessus puis cliquez sur "Générer le tableau de bord".</p>
+    </div>
+
+</div>
+
+<footer>
+    &copy; 2026 Modèle de Tableau de Bord — réutilisable et personnalisable pour votre activité
+</footer>
+
+<script>
+(function () {
+    const editorBody = document.getElementById('editorBody');
+    const addRowBtn = document.getElementById('addRowBtn');
+    const tabBtns = document.querySelectorAll('.tab-btn');
+    const csvInput = document.getElementById('csvInput');
+    const objectiveInput = document.getElementById('objectiveInput');
+    const brandColor = document.getElementById('brandColor');
+    const generateBtn = document.getElementById('generateBtn');
+    const dashboardOutput = document.getElementById('dashboardOutput');
+    const emptyState = document.getElementById('emptyState');
+    const kpiGrid = document.getElementById('kpiGrid');
+    const chartContainer = document.getElementById('chartContainer');
+    const chartLegend = document.getElementById('chartLegend');
+    const chartTip = document.getElementById('chartTip');
+    const dataTable = document.getElementById('dataTable');
+    const printBtn = document.getElementById('printBtn');
+    const downloadCsvBtn = document.getElementById('downloadCsvBtn');
+
+    let csvRows = null; // [{label, value}] when a CSV was imported
+    let currentData = [];
+
+    function addEditorRow(label, value) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td><input type="text" class="row-label" value="${label || ''}" placeholder="ex: Agence Nord"></td>
+            <td><input type="number" class="row-value" value="${value != null ? value : ''}" placeholder="ex: 84"></td>
+            <td><button class="remove" title="Supprimer">✕</button></td>
+        `;
+        tr.querySelector('.remove').addEventListener('click', () => tr.remove());
+        editorBody.appendChild(tr);
+    }
+
+    // Quelques lignes d'exemple pour démarrer
+    addEditorRow('Agence Nord', 92);
+    addEditorRow('Agence Sud', 68);
+    addEditorRow('Agence Est', 105);
+    addEditorRow('Agence Ouest', 77);
+
+    addRowBtn.addEventListener('click', () => addEditorRow('', ''));
+
+    tabBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            tabBtns.forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+            btn.classList.add('active');
+            document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+        });
+    });
+
+    csvInput.addEventListener('change', () => {
+        const file = csvInput.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+            csvRows = parseCSV(reader.result);
+        };
+        reader.readAsText(file);
+    });
+
+    function parseCSV(text) {
+        const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
+        const rows = [];
+        lines.forEach((line, i) => {
+            const parts = line.split(',').map(p => p.trim().replace(/^"|"$/g, ''));
+            if (parts.length < 2) return;
+            const value = parseFloat(parts[1].replace(',', '.'));
+            if (i === 0 && isNaN(value)) return; // ligne d'en-tête
+            if (isNaN(value)) return;
+            rows.push({ label: parts[0], value });
+        });
+        return rows;
+    }
+
+    function readManualData() {
+        const rows = [];
+        editorBody.querySelectorAll('tr').forEach(tr => {
+            const label = tr.querySelector('.row-label').value.trim();
+            const value = parseFloat(tr.querySelector('.row-value').value);
+            if (label && !isNaN(value)) rows.push({ label, value });
+        });
+        return rows;
+    }
+
+    function computeKPIs(data) {
+        const values = data.map(d => d.value);
+        const total = values.reduce((a, b) => a + b, 0);
+        const avg = values.length ? total / values.length : 0;
+        return {
+            total,
+            avg,
+            max: Math.max(...values),
+            min: Math.min(...values),
+            count: data.length
+        };
+    }
+
+    function fmt(n) {
+        return Number.isInteger(n) ? n.toLocaleString('fr-FR') : n.toLocaleString('fr-FR', { maximumFractionDigits: 1 });
+    }
+
+    function renderKPIs(kpis) {
+        kpiGrid.innerHTML = '';
+        const tiles = [
+            ['Total', fmt(kpis.total)],
+            ['Moyenne', fmt(kpis.avg)],
+            ['Maximum', fmt(kpis.max)],
+            ['Minimum', fmt(kpis.min)],
+            ['Catégories', kpis.count]
+        ];
+        tiles.forEach(([label, value]) => {
+            const div = document.createElement('div');
+            div.className = 'kpi-tile';
+            div.innerHTML = `<div class="label">${label}</div><div class="value">${value}</div>`;
+            kpiGrid.appendChild(div);
+        });
+    }
+
+    function renderChart(data, objective, brand) {
+        const width = 860;
+        const barSlot = Math.min(70, width / data.length);
+        const barWidth = Math.min(24, barSlot * 0.6);
+        const height = 260;
+        const chartTop = 20;
+        const chartBottom = height - 40;
+        const maxVal = Math.max(...data.map(d => d.value), objective || 0) * 1.15 || 1;
+
+        const gridLines = 4;
+        let gridSvg = '';
+        for (let i = 0; i <= gridLines; i++) {
+            const y = chartTop + (chartBottom - chartTop) * (1 - i / gridLines);
+            const val = Math.round((maxVal * i) / gridLines);
+            gridSvg += `<line x1="0" y1="${y}" x2="${width}" y2="${y}" stroke="var(--gridline)" stroke-width="1"/>`;
+            gridSvg += `<text x="0" y="${y - 4}" font-size="10" fill="var(--text-muted)">${fmt(val)}</text>`;
+        }
+
+        let barsSvg = '';
+        data.forEach((d, i) => {
+            const slotX = (width / data.length) * i;
+            const x = slotX + (width / data.length - barWidth) / 2;
+            const barHeight = (d.value / maxVal) * (chartBottom - chartTop);
+            const y = chartBottom - barHeight;
+            let color = brand;
+            let status = null;
+            if (objective) {
+                status = d.value >= objective ? 'good' : 'critical';
+                color = status === 'good' ? 'var(--good)' : 'var(--critical)';
+            }
+            barsSvg += `
+                <rect x="${x}" y="${y}" width="${barWidth}" height="${Math.max(barHeight, 1)}"
+                      rx="4" fill="${color}" class="bar" data-index="${i}"
+                      style="cursor:pointer;"></rect>
+                <text x="${x + barWidth / 2}" y="${y - 6}" font-size="11" fill="var(--text-primary)"
+                      text-anchor="middle">${fmt(d.value)}</text>
+                <text x="${x + barWidth / 2}" y="${chartBottom + 16}" font-size="10" fill="var(--text-muted)"
+                      text-anchor="middle">${truncateLabel(d.label)}</text>
+            `;
+        });
+
+        chartContainer.innerHTML = `
+            <svg viewBox="0 0 ${width} ${height}" style="width:100%; height:auto; overflow:visible;">
+                ${gridSvg}
+                <line x1="0" y1="${chartBottom}" x2="${width}" y2="${chartBottom}" stroke="var(--baseline)" stroke-width="1"/>
+                ${barsSvg}
+            </svg>
+        `;
+
+        chartContainer.querySelectorAll('.bar').forEach(rect => {
+            rect.addEventListener('mousemove', (e) => {
+                const idx = parseInt(rect.dataset.index, 10);
+                const d = data[idx];
+                chartTip.textContent = `${d.label} : ${fmt(d.value)}`;
+                chartTip.style.left = (e.pageX + 12) + 'px';
+                chartTip.style.top = (e.pageY - 10) + 'px';
+                chartTip.style.opacity = '1';
+            });
+            rect.addEventListener('mouseleave', () => { chartTip.style.opacity = '0'; });
+        });
+
+        chartLegend.innerHTML = '';
+        if (objective) {
+            chartLegend.innerHTML = `
+                <span class="legend-item"><span class="legend-swatch" style="background:var(--good);"></span>✓ Atteint (≥ ${fmt(objective)})</span>
+                <span class="legend-item"><span class="legend-swatch" style="background:var(--critical);"></span>✕ Non atteint</span>
+            `;
+        }
+    }
+
+    function truncateLabel(label) {
+        return label.length > 12 ? label.slice(0, 11) + '…' : label;
+    }
+
+    function renderTable(data, objective) {
+        let html = `<thead><tr><th>Catégorie</th><th>Valeur</th>${objective ? '<th>Statut</th>' : ''}</tr></thead><tbody>`;
+        data.forEach(d => {
+            let statusCell = '';
+            let rowClass = '';
+            if (objective) {
+                const good = d.value >= objective;
+                rowClass = good ? 'status-good' : 'status-critical';
+                statusCell = `<td><span class="status-icon ${good ? 'good' : 'critical'}">${good ? '✓ Atteint' : '✕ Non atteint'}</span></td>`;
+            }
+            html += `<tr class="${rowClass}"><td>${escapeHtml(d.label)}</td><td>${fmt(d.value)}</td>${statusCell}</tr>`;
+        });
+        html += '</tbody>';
+        dataTable.innerHTML = html;
+    }
+
+    function escapeHtml(str) {
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+    }
+
+    generateBtn.addEventListener('click', () => {
+        const activeTab = document.querySelector('.tab-btn.active').dataset.tab;
+        const data = activeTab === 'csv' && csvRows ? csvRows : readManualData();
+
+        if (!data.length) {
+            alert('Ajoutez au moins une ligne de données (catégorie + valeur).');
+            return;
+        }
+
+        currentData = data;
+        const objective = objectiveInput.value ? parseFloat(objectiveInput.value) : null;
+        const brand = brandColor.value;
+        document.documentElement.style.setProperty('--brand', brand);
+        document.querySelector('.viz-root').style.setProperty('--brand', brand);
+
+        renderKPIs(computeKPIs(data));
+        renderChart(data, objective, brand);
+        renderTable(data, objective);
+
+        dashboardOutput.style.display = 'block';
+        emptyState.style.display = 'none';
+    });
+
+    printBtn.addEventListener('click', () => window.print());
+
+    downloadCsvBtn.addEventListener('click', () => {
+        if (!currentData.length) return;
+        const csv = 'Categorie,Valeur\n' + currentData.map(d => `${d.label},${d.value}`).join('\n');
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'donnees-tableau-de-bord.csv';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    });
+})();
+</script>
+
+</body>
+</html>
