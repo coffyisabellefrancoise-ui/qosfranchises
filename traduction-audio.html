@@ -211,6 +211,16 @@
             margin-top: 12px;
         }
 
+        .voice-block.highlight {
+            border: 2px solid var(--orange);
+            background: #fffaf4;
+        }
+
+        .voice-block.highlight button:not(.secondary) {
+            font-size: 1.05rem;
+            padding: 14px 26px;
+        }
+
         .voice-block h3 {
             margin: 0 0 10px;
             font-size: 0.95rem;
@@ -316,18 +326,29 @@
             </p>
         </div>
 
-        <div class="voice-block" id="videoDubBlock" style="display:none;">
-            <h3>🎬 Vidéo doublée — téléchargeable</h3>
-            <button id="dubVideoBtn" class="secondary" disabled>🎬 Générer la vidéo doublée</button>
-            <button id="dubDownloadBtn" class="secondary" disabled>⬇ Télécharger la vidéo (.webm)</button>
+        <div class="voice-block highlight" id="videoDubBlock" style="display:none;">
+            <h3>🎬 Vidéo traduite — téléchargeable</h3>
+            <button id="oneClickVideoBtn" disabled>🎬⬇ Traduire et télécharger la vidéo (.webm)</button>
+            <div id="oneClickVideoUnavailable" class="note" style="display:none; color:#c62828;">
+                Pas de voix IA neuronale disponible pour cette langue : la vidéo traduite téléchargeable n'est
+                pas possible ici (essayez Français, Espagnol, Allemand, Portugais, Russe, Arabe, Hindi, Coréen
+                ou Vietnamien).
+            </div>
             <video id="dubVideoPlayer" controls style="display:none; width:100%; margin-top:10px;"></video>
             <p class="note">
-                Remplace la piste audio d'origine par la voix générée ci-dessus et produit un fichier vidéo
-                téléchargeable. La génération tourne en temps réel (≈ la durée de la vidéo). La longueur de la
-                traduction parlée diffère souvent de l'audio d'origine : ce n'est pas un doublage synchronisé
-                lèvres/voix comme HeyGen, seulement un remplacement de la bande audio. Nécessite la voix IA
-                neuronale ci-dessus (indisponible pour certaines langues).
+                Remplace la piste audio d'origine par la voix générée dans le style choisi ci-dessus et
+                télécharge automatiquement un fichier vidéo. La génération tourne en temps réel (≈ la durée de
+                la vidéo, donc environ 5 minutes pour une vidéo de 5 minutes). La longueur de la traduction
+                parlée diffère souvent de l'audio d'origine : ce n'est pas un doublage synchronisé lèvres/voix
+                comme HeyGen, seulement un remplacement de la bande audio.
             </p>
+            <details style="margin-top:10px;">
+                <summary style="cursor:pointer; font-size:0.85rem; color:var(--orange); font-weight:bold;">Options avancées (étapes séparées)</summary>
+                <div style="margin-top:10px;">
+                    <button id="dubVideoBtn" class="secondary" disabled>🎬 Générer la vidéo doublée (sans télécharger)</button>
+                    <button id="dubDownloadBtn" class="secondary" disabled>⬇ Télécharger la vidéo générée (.webm)</button>
+                </div>
+            </details>
         </div>
 
         <div class="voice-block">
@@ -461,6 +482,8 @@ const videoDubBlock = document.getElementById('videoDubBlock');
 const dubVideoBtn = document.getElementById('dubVideoBtn');
 const dubDownloadBtn = document.getElementById('dubDownloadBtn');
 const dubVideoPlayer = document.getElementById('dubVideoPlayer');
+const oneClickVideoBtn = document.getElementById('oneClickVideoBtn');
+const oneClickVideoUnavailable = document.getElementById('oneClickVideoUnavailable');
 
 let selectedFile = null;
 let transcriber = null;
@@ -499,6 +522,8 @@ function updateLangUI() {
         aiVoiceBtn.style.display = 'none';
         aiDownloadBtn.style.display = 'none';
     }
+    oneClickVideoUnavailable.style.display = lang.ttsModel ? 'none' : 'block';
+    oneClickVideoBtn.style.display = lang.ttsModel ? 'inline-block' : 'none';
     loadVoices();
 }
 
@@ -564,6 +589,7 @@ function onFileSelected() {
     videoDubBlock.style.display = selectedFile.type.startsWith('video/') ? 'block' : 'none';
     dubVideoBtn.disabled = true;
     dubDownloadBtn.disabled = true;
+    oneClickVideoBtn.disabled = true;
     dubVideoPlayer.style.display = 'none';
     currentDubBlob = null;
 }
@@ -686,6 +712,7 @@ async function run() {
     currentWavBlob = null;
     dubVideoBtn.disabled = true;
     dubDownloadBtn.disabled = true;
+    oneClickVideoBtn.disabled = true;
     dubVideoPlayer.style.display = 'none';
     currentDubBlob = null;
     setProgress(5);
@@ -754,7 +781,12 @@ async function run() {
 
         downloadFrBtn.disabled = false;
         speakBtn.disabled = false;
-        if (lang.ttsModel) aiVoiceBtn.disabled = false;
+        if (lang.ttsModel) {
+            aiVoiceBtn.disabled = false;
+            if (selectedFile && selectedFile.type.startsWith('video/')) {
+                oneClickVideoBtn.disabled = false;
+            }
+        }
     } catch (err) {
         console.error(err);
         log(`Erreur : ${err.message || err}`, 'err');
@@ -837,11 +869,10 @@ function encodeWAV(samples, sampleRate) {
     return new Blob([view], { type: 'audio/wav' });
 }
 
-aiVoiceBtn.addEventListener('click', async () => {
+async function generateAiVoice() {
     const text = frenchTextEl.value;
-    if (!text) return;
+    if (!text) return false;
 
-    aiVoiceBtn.disabled = true;
     aiDownloadBtn.disabled = true;
     aiAudioPlayer.style.display = 'none';
     currentWavBlob = null;
@@ -850,7 +881,7 @@ aiVoiceBtn.addEventListener('click', async () => {
         const lang = currentLang();
         if (!lang.ttsModel) {
             log(`Pas de voix IA neuronale disponible pour ${lang.name}.`, 'err');
-            return;
+            return false;
         }
         if (!synthesizers[lang.bcp47]) {
             log(`Chargement du modèle de voix IA (${lang.ttsModel}, mis en cache après la 1ère fois)...`);
@@ -878,10 +909,19 @@ aiVoiceBtn.addEventListener('click', async () => {
         if (selectedFile && selectedFile.type.startsWith('video/')) {
             dubVideoBtn.disabled = false;
         }
-        log('Audio français généré avec succès !', 'ok');
+        log('Audio généré avec succès !', 'ok');
+        return true;
     } catch (err) {
         console.error(err);
         log(`Erreur lors de la génération de la voix IA : ${err.message || err}`, 'err');
+        return false;
+    }
+}
+
+aiVoiceBtn.addEventListener('click', async () => {
+    aiVoiceBtn.disabled = true;
+    try {
+        await generateAiVoice();
     } finally {
         aiVoiceBtn.disabled = false;
     }
@@ -959,14 +999,10 @@ async function buildDubbedVideo(videoFile, wavBlob) {
     return new Blob(chunks, { type: 'video/webm' });
 }
 
-dubVideoBtn.addEventListener('click', async () => {
-    if (!selectedFile || !currentWavBlob) return;
-
-    dubVideoBtn.disabled = true;
-    dubDownloadBtn.disabled = true;
+async function generateDubbedVideo() {
+    if (!selectedFile || !currentWavBlob) return false;
     dubVideoPlayer.style.display = 'none';
     currentDubBlob = null;
-
     try {
         log('Génération de la vidéo doublée (lecture en temps réel)...');
         currentDubBlob = await buildDubbedVideo(selectedFile, currentWavBlob);
@@ -975,9 +1011,30 @@ dubVideoBtn.addEventListener('click', async () => {
         dubVideoPlayer.style.display = 'block';
         dubDownloadBtn.disabled = false;
         log('Vidéo doublée générée avec succès !', 'ok');
+        return true;
     } catch (err) {
         console.error(err);
         log(`Erreur lors de la génération de la vidéo doublée : ${err.message || err}`, 'err');
+        return false;
+    }
+}
+
+function downloadBlob(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+dubVideoBtn.addEventListener('click', async () => {
+    dubVideoBtn.disabled = true;
+    dubDownloadBtn.disabled = true;
+    try {
+        await generateDubbedVideo();
     } finally {
         dubVideoBtn.disabled = false;
     }
@@ -985,14 +1042,40 @@ dubVideoBtn.addEventListener('click', async () => {
 
 dubDownloadBtn.addEventListener('click', () => {
     if (!currentDubBlob) return;
-    const url = URL.createObjectURL(currentDubBlob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `video-doublee-${langSelect.value}.webm`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    downloadBlob(currentDubBlob, `video-doublee-${langSelect.value}.webm`);
+});
+
+// --- Bouton unique : traduire + télécharger la vidéo en une seule action ---
+oneClickVideoBtn.addEventListener('click', async () => {
+    if (!selectedFile || !frenchTextEl.value) {
+        log("Lancez d'abord la traduction (bouton \"Traduire\") avant de générer la vidéo.", 'err');
+        return;
+    }
+    const lang = currentLang();
+    if (!lang.ttsModel) {
+        log(`Vidéo traduite indisponible pour ${lang.name} (pas de voix IA neuronale).`, 'err');
+        return;
+    }
+
+    oneClickVideoBtn.disabled = true;
+    try {
+        if (!currentWavBlob) {
+            log('Étape 1/2 : génération de la voix...');
+            const voiceOk = await generateAiVoice();
+            if (!voiceOk || !currentWavBlob) {
+                log('Impossible de générer la voix — vidéo traduite annulée.', 'err');
+                return;
+            }
+        }
+        log('Étape 2/2 : génération de la vidéo doublée...');
+        const videoOk = await generateDubbedVideo();
+        if (videoOk && currentDubBlob) {
+            downloadBlob(currentDubBlob, `video-traduite-${langSelect.value}.webm`);
+            log('Vidéo traduite téléchargée !', 'ok');
+        }
+    } finally {
+        oneClickVideoBtn.disabled = false;
+    }
 });
 
 // --- Voix du navigateur (lecture instantanée) ---
