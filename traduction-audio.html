@@ -86,6 +86,17 @@
             color: var(--dark-grey);
         }
 
+        .field {
+            margin-bottom: 16px;
+        }
+
+        .field label {
+            display: block;
+            font-weight: bold;
+            font-size: 0.9rem;
+            margin-bottom: 6px;
+        }
+
         button {
             background-color: var(--orange);
             border: none;
@@ -114,13 +125,19 @@
             color: var(--orange);
         }
 
+        button.secondary:disabled {
+            background: white;
+            border-color: #ccc;
+            color: #ccc;
+        }
+
         select {
             padding: 8px;
             border-radius: 6px;
             border: 1px solid #ccc;
             width: 100%;
             max-width: 400px;
-            margin-bottom: 10px;
+            margin-bottom: 6px;
         }
 
         textarea {
@@ -133,6 +150,22 @@
             font-size: 0.95rem;
             resize: vertical;
             box-sizing: border-box;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 10px;
+            background: #eee;
+            border-radius: 6px;
+            overflow: hidden;
+            margin: 12px 0 4px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            width: 0%;
+            background: var(--orange);
+            transition: width 0.3s ease;
         }
 
         .log {
@@ -157,6 +190,7 @@
             font-size: 0.75rem;
             font-weight: bold;
             margin-bottom: 10px;
+            margin-right: 6px;
         }
 
         .badge.free {
@@ -168,6 +202,23 @@
             font-size: 0.82rem;
             color: #888;
             margin-top: 8px;
+        }
+
+        .voice-block {
+            border: 1px solid #eee;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 12px;
+        }
+
+        .voice-block h3 {
+            margin: 0 0 10px;
+            font-size: 0.95rem;
+        }
+
+        audio {
+            width: 100%;
+            margin-top: 10px;
         }
 
         footer {
@@ -182,7 +233,7 @@
 
 <header>
     <h1>🎙️ TRADUCTEUR AUDIO / VIDÉO — Anglais → Français</h1>
-    <p>Transcription, traduction et lecture vocale, 100% dans le navigateur</p>
+    <p>Transcription, traduction et doublage vocal, 100% dans le navigateur</p>
     <a href="index.html">&larr; Retour au Dashboard Qualité</a>
 </header>
 
@@ -196,12 +247,23 @@
             <div class="file-name" id="fileName"></div>
         </div>
         <input type="file" id="fileInput" accept="audio/*,video/*">
+
+        <div class="field" style="margin-top:18px;">
+            <label for="qualitySelect">Qualité de transcription</label>
+            <select id="qualitySelect">
+                <option value="rapide">Rapide (moins précis, court fichier / brouillon)</option>
+                <option value="equilibre" selected>Équilibré (recommandé)</option>
+                <option value="precis">Précis (plus lent, meilleure fidélité)</option>
+            </select>
+        </div>
+
         <p class="note">
-            Tout le traitement (reconnaissance vocale + traduction) se fait localement dans votre navigateur
-            grâce à des modèles d'IA téléchargés une seule fois (~150 Mo, mis en cache). Pour une vidéo,
-            le traitement peut prendre à peu près la durée de la vidéo (extraction de la piste audio en temps réel).
+            Tout le traitement (reconnaissance vocale + traduction + génération de la voix) se fait localement
+            dans votre navigateur grâce à des modèles d'IA téléchargés une seule fois (mis en cache). Pour une
+            vidéo, l'extraction de la piste audio prend à peu près la durée de la vidéo.
         </p>
         <button id="startBtn" disabled>Traduire en français</button>
+        <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
     </div>
 
     <div class="card">
@@ -212,22 +274,35 @@
     <div class="card">
         <h2>3. Transcription (anglais)</h2>
         <textarea id="englishText" readonly placeholder="Le texte transcrit apparaîtra ici..."></textarea>
+        <button id="downloadEnBtn" class="secondary" disabled>⬇ Télécharger le texte anglais (.txt)</button>
     </div>
 
     <div class="card">
         <h2>4. Traduction (français)</h2>
         <textarea id="frenchText" readonly placeholder="La traduction apparaîtra ici..."></textarea>
-        <div style="margin-top:15px;">
-            <label for="voiceSelect"><strong>Voix française :</strong></label><br>
+        <button id="downloadFrBtn" class="secondary" disabled>⬇ Télécharger le texte français (.txt)</button>
+
+        <div class="voice-block">
+            <h3>🧠 Voix IA neuronale — fichier audio téléchargeable</h3>
+            <button id="aiVoiceBtn" class="secondary" disabled>🎧 Générer l'audio français</button>
+            <button id="aiDownloadBtn" class="secondary" disabled>⬇ Télécharger l'audio (.wav)</button>
+            <audio id="aiAudioPlayer" controls style="display:none;"></audio>
+            <p class="note">
+                Génère un vrai fichier audio (.wav) de la traduction, avec une voix neuronale IA (modèle MMS-TTS),
+                sans permission particulière. Le premier appel télécharge le modèle de voix (une seule fois).
+            </p>
+        </div>
+
+        <div class="voice-block">
+            <h3>🔊 Voix du navigateur — lecture instantanée</h3>
             <select id="voiceSelect"></select><br>
             <button id="speakBtn" class="secondary" disabled>🔊 Écouter en français</button>
             <button id="stopBtn" class="secondary" disabled>⏹ Stop</button>
-            <button id="downloadBtn" class="secondary" disabled>⬇ Télécharger le texte (.txt)</button>
+            <p class="note">
+                Utilise les voix françaises déjà installées sur votre appareil/navigateur (pratique et instantané,
+                mais non téléchargeable en fichier audio).
+            </p>
         </div>
-        <p class="note">
-            La qualité de la voix dépend des voix françaises installées sur votre appareil/navigateur.
-            Chrome/Edge proposent en général des voix "Google français" ou "Microsoft ... Natural" très naturelles.
-        </p>
     </div>
 
 </div>
@@ -241,21 +316,36 @@ import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers
 
 env.allowLocalModels = false;
 
+const QUALITY_MODELS = {
+    rapide: 'Xenova/whisper-tiny.en',
+    equilibre: 'Xenova/whisper-base.en',
+    precis: 'Xenova/whisper-small.en'
+};
+
 const dropZone = document.getElementById('dropZone');
 const fileInput = document.getElementById('fileInput');
 const fileNameEl = document.getElementById('fileName');
+const qualitySelect = document.getElementById('qualitySelect');
 const startBtn = document.getElementById('startBtn');
+const progressFill = document.getElementById('progressFill');
 const logEl = document.getElementById('log');
 const englishTextEl = document.getElementById('englishText');
 const frenchTextEl = document.getElementById('frenchText');
+const downloadEnBtn = document.getElementById('downloadEnBtn');
+const downloadFrBtn = document.getElementById('downloadFrBtn');
+const aiVoiceBtn = document.getElementById('aiVoiceBtn');
+const aiDownloadBtn = document.getElementById('aiDownloadBtn');
+const aiAudioPlayer = document.getElementById('aiAudioPlayer');
 const voiceSelect = document.getElementById('voiceSelect');
 const speakBtn = document.getElementById('speakBtn');
 const stopBtn = document.getElementById('stopBtn');
-const downloadBtn = document.getElementById('downloadBtn');
 
 let selectedFile = null;
 let transcriber = null;
+let loadedQuality = null;
 let translator = null;
+let synthesizer = null;
+let currentWavBlob = null;
 
 function log(msg, cls) {
     const line = document.createElement('div');
@@ -269,6 +359,24 @@ function log(msg, cls) {
 function resetLog() {
     logEl.innerHTML = '';
 }
+
+function setProgress(pct) {
+    progressFill.style.width = `${Math.max(0, Math.min(100, pct))}%`;
+}
+
+function downloadText(text, filename) {
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+// --- Sélection du fichier ---
 
 dropZone.addEventListener('click', () => fileInput.click());
 dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
@@ -292,11 +400,15 @@ function onFileSelected() {
     fileNameEl.textContent = `Fichier sélectionné : ${selectedFile.name}`;
     startBtn.disabled = false;
     resetLog();
+    setProgress(0);
     log(`Fichier prêt : ${selectedFile.name} (${(selectedFile.size / 1024 / 1024).toFixed(2)} Mo)`);
 }
 
+// --- Extraction / décodage audio ---
+
 async function extractAudioBufferFromFile(file) {
     const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) throw new Error("Ce navigateur ne prend pas en charge le traitement audio (Web Audio API).");
     const audioCtx = new AudioContextClass();
 
     if (file.type.startsWith('video/')) {
@@ -320,6 +432,7 @@ function extractAudioBlobFromVideo(file) {
         video.addEventListener('loadedmetadata', async () => {
             try {
                 const stream = video.captureStream ? video.captureStream() : video.mozCaptureStream();
+                if (!stream) throw new Error("La capture de flux vidéo (captureStream) n'est pas supportée par ce navigateur.");
                 const audioTracks = stream.getAudioTracks();
                 if (!audioTracks.length) {
                     reject(new Error("Aucune piste audio détectée dans cette vidéo."));
@@ -388,45 +501,66 @@ function progressLogger(prefix) {
     };
 }
 
+// --- Pipeline principal : décodage -> transcription -> traduction ---
+
 async function run() {
     startBtn.disabled = true;
     fileInput.disabled = true;
     englishTextEl.value = '';
     frenchTextEl.value = '';
+    downloadEnBtn.disabled = true;
+    downloadFrBtn.disabled = true;
     speakBtn.disabled = true;
-    downloadBtn.disabled = true;
+    aiVoiceBtn.disabled = true;
+    aiDownloadBtn.disabled = true;
+    aiAudioPlayer.style.display = 'none';
+    currentWavBlob = null;
+    setProgress(5);
 
     try {
         log('Décodage du fichier audio...');
         const audioBuffer = await extractAudioBufferFromFile(selectedFile);
         log(`Audio décodé : ${audioBuffer.duration.toFixed(1)}s, ${audioBuffer.sampleRate} Hz`, 'ok');
+        if (audioBuffer.duration > 600) {
+            log("Fichier long (> 10 min) : le traitement dans le navigateur peut être lent.", 'err');
+        }
+        setProgress(20);
 
         log('Ré-échantillonnage à 16 kHz mono...');
         const samples = await resampleTo16kHzMono(audioBuffer);
+        setProgress(30);
 
-        if (!transcriber) {
-            log('Chargement du modèle de reconnaissance vocale (Whisper, première fois seulement)...');
-            transcriber = await pipeline('automatic-speech-recognition', 'Xenova/whisper-tiny.en', {
+        const quality = qualitySelect.value;
+        const modelName = QUALITY_MODELS[quality];
+        if (!transcriber || loadedQuality !== quality) {
+            log(`Chargement du modèle de reconnaissance vocale (${modelName}, mis en cache après la 1ère fois)...`);
+            transcriber = await pipeline('automatic-speech-recognition', modelName, {
                 progress_callback: progressLogger('Whisper')
             });
+            loadedQuality = quality;
         }
+        setProgress(45);
         log('Transcription en cours...');
         const asrOutput = await transcriber(samples, { chunk_length_s: 30, stride_length_s: 5 });
         const englishText = (asrOutput.text || '').trim();
         englishTextEl.value = englishText || '(aucun texte détecté)';
         log('Transcription terminée.', 'ok');
+        setProgress(60);
 
         if (!englishText) {
             log("Aucun texte n'a pu être transcrit depuis ce fichier.", 'err');
+            setProgress(0);
             return;
         }
+        downloadEnBtn.disabled = false;
 
         if (!translator) {
-            log('Chargement du modèle de traduction EN→FR (première fois seulement)...');
+            log('Chargement du modèle de traduction EN→FR (mis en cache après la 1ère fois)...');
             translator = await pipeline('translation', 'Xenova/opus-mt-en-fr', {
                 progress_callback: progressLogger('Traduction')
             });
         }
+        setProgress(75);
         log('Traduction en cours...');
         const chunks = splitIntoChunks(englishText);
         let frenchText = '';
@@ -437,12 +571,15 @@ async function run() {
         }
         frenchTextEl.value = frenchText;
         log('Traduction terminée !', 'ok');
+        setProgress(100);
 
+        downloadFrBtn.disabled = false;
         speakBtn.disabled = false;
-        downloadBtn.disabled = false;
+        aiVoiceBtn.disabled = false;
     } catch (err) {
         console.error(err);
         log(`Erreur : ${err.message || err}`, 'err');
+        setProgress(0);
     } finally {
         startBtn.disabled = false;
         fileInput.disabled = false;
@@ -450,8 +587,108 @@ async function run() {
 }
 
 startBtn.addEventListener('click', run);
+downloadEnBtn.addEventListener('click', () => downloadText(englishTextEl.value, 'transcription-anglais.txt'));
+downloadFrBtn.addEventListener('click', () => downloadText(frenchTextEl.value, 'traduction-francais.txt'));
 
-// --- Voix françaises (synthèse vocale) ---
+// --- Voix IA neuronale (fichier audio réel, téléchargeable) ---
+
+function concatFloat32(arrays, gapSeconds, sampleRate) {
+    const gapSamples = Math.round(gapSeconds * sampleRate);
+    let total = 0;
+    arrays.forEach(a => { total += a.length + gapSamples; });
+    const result = new Float32Array(total);
+    let offset = 0;
+    arrays.forEach(a => {
+        result.set(a, offset);
+        offset += a.length + gapSamples;
+    });
+    return result;
+}
+
+function encodeWAV(samples, sampleRate) {
+    const buffer = new ArrayBuffer(44 + samples.length * 2);
+    const view = new DataView(buffer);
+
+    function writeString(offset, str) {
+        for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+    }
+
+    writeString(0, 'RIFF');
+    view.setUint32(4, 36 + samples.length * 2, true);
+    writeString(8, 'WAVE');
+    writeString(12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, 1, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * 2, true);
+    view.setUint16(32, 2, true);
+    view.setUint16(34, 16, true);
+    writeString(36, 'data');
+    view.setUint32(40, samples.length * 2, true);
+
+    let offset = 44;
+    for (let i = 0; i < samples.length; i++, offset += 2) {
+        const s = Math.max(-1, Math.min(1, samples[i]));
+        view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+    }
+    return new Blob([view], { type: 'audio/wav' });
+}
+
+aiVoiceBtn.addEventListener('click', async () => {
+    const text = frenchTextEl.value;
+    if (!text) return;
+
+    aiVoiceBtn.disabled = true;
+    aiDownloadBtn.disabled = true;
+    aiAudioPlayer.style.display = 'none';
+    currentWavBlob = null;
+
+    try {
+        if (!synthesizer) {
+            log('Chargement du modèle de voix IA française (MMS-TTS, mis en cache après la 1ère fois)...');
+            synthesizer = await pipeline('text-to-speech', 'Xenova/mms-tts-fra', {
+                progress_callback: progressLogger('Voix IA')
+            });
+        }
+        const chunks = splitIntoChunks(text, 300);
+        const buffers = [];
+        let sampleRate = 16000;
+        for (let i = 0; i < chunks.length; i++) {
+            log(`Génération de la voix — segment ${i + 1}/${chunks.length}...`);
+            const output = await synthesizer(chunks[i]);
+            buffers.push(output.audio);
+            sampleRate = output.sampling_rate;
+        }
+        const merged = concatFloat32(buffers, 0.35, sampleRate);
+        currentWavBlob = encodeWAV(merged, sampleRate);
+        const url = URL.createObjectURL(currentWavBlob);
+        aiAudioPlayer.src = url;
+        aiAudioPlayer.style.display = 'block';
+        aiDownloadBtn.disabled = false;
+        log('Audio français généré avec succès !', 'ok');
+    } catch (err) {
+        console.error(err);
+        log(`Erreur lors de la génération de la voix IA : ${err.message || err}`, 'err');
+    } finally {
+        aiVoiceBtn.disabled = false;
+    }
+});
+
+aiDownloadBtn.addEventListener('click', () => {
+    if (!currentWavBlob) return;
+    const url = URL.createObjectURL(currentWavBlob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'voix-francaise.wav';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+});
+
+// --- Voix du navigateur (lecture instantanée) ---
+
 let frenchVoices = [];
 
 function loadVoices() {
@@ -478,7 +715,7 @@ function loadVoices() {
 }
 
 loadVoices();
-if (speechSynthesis.onvoiceschanged !== undefined) {
+if (typeof speechSynthesis !== 'undefined' && speechSynthesis.onvoiceschanged !== undefined) {
     speechSynthesis.onvoiceschanged = loadVoices;
 }
 
@@ -499,20 +736,6 @@ speakBtn.addEventListener('click', () => {
 stopBtn.addEventListener('click', () => {
     speechSynthesis.cancel();
     stopBtn.disabled = true;
-});
-
-downloadBtn.addEventListener('click', () => {
-    const text = frenchTextEl.value;
-    if (!text) return;
-    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'traduction-francais.txt';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
 });
 </script>
 
