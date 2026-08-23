@@ -293,12 +293,23 @@
 
         <div class="voice-block" id="aiVoiceBlock">
             <h3>🧠 Voix IA neuronale — fichier audio téléchargeable</h3>
+            <label for="voiceStyleSelect" style="font-size:0.85rem; font-weight:bold; display:block; margin-bottom:6px;">Style de voix</label>
+            <select id="voiceStyleSelect">
+                <option value="normal">Voix originale</option>
+                <option value="homme">Voix homme (grave)</option>
+                <option value="femme">Voix femme (aiguë)</option>
+                <option value="enfant_garcon">Voix enfant — garçon</option>
+                <option value="enfant_fille">Voix enfant — fille</option>
+            </select>
+            <br>
             <button id="aiVoiceBtn" class="secondary" disabled>🎧 Générer l'audio</button>
             <button id="aiDownloadBtn" class="secondary" disabled>⬇ Télécharger l'audio (.wav)</button>
             <audio id="aiAudioPlayer" controls style="display:none;"></audio>
             <p class="note">
                 Génère un vrai fichier audio (.wav) de la traduction, avec une voix neuronale IA (modèle MMS-TTS),
                 sans permission particulière. Le premier appel télécharge le modèle de voix (une seule fois).
+                Les styles homme/femme/enfant sont obtenus par transformation de hauteur de voix (pitch) à partir
+                de la voix de base du modèle — un effet simple et gratuit, pas un clonage vocal.
             </p>
             <p class="note" id="aiVoiceUnavailableNote" style="display:none; color:#c62828;">
                 Pas encore de voix IA neuronale gratuite pour cette langue — utilisez la voix du navigateur ci-dessous.
@@ -423,6 +434,7 @@ const englishTextEl = document.getElementById('englishText');
 const frenchTextEl = document.getElementById('frenchText');
 const downloadEnBtn = document.getElementById('downloadEnBtn');
 const downloadFrBtn = document.getElementById('downloadFrBtn');
+const voiceStyleSelect = document.getElementById('voiceStyleSelect');
 const aiVoiceBtn = document.getElementById('aiVoiceBtn');
 const aiDownloadBtn = document.getElementById('aiDownloadBtn');
 const aiAudioPlayer = document.getElementById('aiAudioPlayer');
@@ -743,6 +755,29 @@ downloadFrBtn.addEventListener('click', () => downloadText(frenchTextEl.value, `
 
 // --- Voix IA neuronale (fichier audio réel, téléchargeable) ---
 
+const VOICE_STYLES = {
+    normal: 1.0,
+    homme: 0.82,
+    femme: 1.18,
+    enfant_garcon: 1.35,
+    enfant_fille: 1.5
+};
+
+function applyPitchStyle(samples, styleKey) {
+    const factor = VOICE_STYLES[styleKey] || 1.0;
+    if (factor === 1.0) return samples;
+    const newLength = Math.round(samples.length / factor);
+    const result = new Float32Array(newLength);
+    for (let i = 0; i < newLength; i++) {
+        const srcIndex = i * factor;
+        const i0 = Math.floor(srcIndex);
+        const i1 = Math.min(i0 + 1, samples.length - 1);
+        const frac = srcIndex - i0;
+        result[i] = samples[i0] * (1 - frac) + samples[i1] * frac;
+    }
+    return result;
+}
+
 function concatFloat32(arrays, gapSeconds, sampleRate) {
     const gapSamples = Math.round(gapSeconds * sampleRate);
     let total = 0;
@@ -818,7 +853,8 @@ aiVoiceBtn.addEventListener('click', async () => {
             sampleRate = output.sampling_rate;
         }
         const merged = concatFloat32(buffers, 0.35, sampleRate);
-        currentWavBlob = encodeWAV(merged, sampleRate);
+        const styled = applyPitchStyle(merged, voiceStyleSelect.value);
+        currentWavBlob = encodeWAV(styled, sampleRate);
         const url = URL.createObjectURL(currentWavBlob);
         aiAudioPlayer.src = url;
         aiAudioPlayer.style.display = 'block';
@@ -840,7 +876,7 @@ aiDownloadBtn.addEventListener('click', () => {
     const url = URL.createObjectURL(currentWavBlob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `voix-${langSelect.value}.wav`;
+    a.download = `voix-${langSelect.value}-${voiceStyleSelect.value}.wav`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
