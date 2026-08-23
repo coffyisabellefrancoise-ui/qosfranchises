@@ -320,6 +320,21 @@
             font-size: 0.8rem;
             color: #888;
         }
+
+        .file-name {
+            overflow-wrap: break-word;
+            word-break: break-word;
+        }
+
+        @media (max-width: 600px) {
+            .container { padding: 0 12px 32px; }
+            .card { padding: 18px 16px; }
+            header h1 { font-size: 1.2rem; }
+            header p { font-size: 0.82rem; }
+            button { padding: 11px 16px; font-size: 0.86rem; margin-right: 6px; }
+            select, input[type="text"], input[type="number"] { max-width: 100%; }
+            .card h2 { font-size: 0.95rem; }
+        }
     </style>
 </head>
 <body>
@@ -338,9 +353,10 @@
         <span class="badge free">Gratuit — aucune clé API, aucun paiement</span>
         <h2 data-step="1">Choisir un fichier audio ou vidéo (en anglais)</h2>
         <div class="drop-zone" id="dropZone">
-            <p>Cliquez ici ou déposez un fichier audio/vidéo (mp3, wav, m4a, mp4, webm...)</p>
+            <p>Cliquez ici ou déposez un fichier audio/vidéo (mp3, wav, m4a, mp4, webm... — 300 Mo max)</p>
             <div class="file-name" id="fileName"></div>
         </div>
+        <button id="removeFileBtn" class="secondary" style="display:none; margin-top:8px;" type="button">✕ Retirer le fichier</button>
         <input type="file" id="fileInput" accept="audio/*,video/*">
 
         <div class="field" style="margin-top:18px;">
@@ -375,13 +391,22 @@
 
     <div class="card">
         <h2 data-step="3">Transcription (anglais)</h2>
-        <textarea id="englishText" readonly placeholder="Le texte transcrit apparaîtra ici..."></textarea>
+        <textarea id="englishText" placeholder="Le texte transcrit apparaîtra ici... (modifiable — ou collez votre propre texte anglais)"></textarea>
+        <button id="pasteEnBtn" class="secondary" type="button">📥 Coller</button>
+        <button id="copyEnBtn" class="secondary" disabled>📋 Copier</button>
         <button id="downloadEnBtn" class="secondary" disabled>⬇ Télécharger le texte anglais (.txt)</button>
+        <button id="translateTextBtn" type="button">🔤 Traduire ce texte</button>
+        <p class="note">
+            Vous pouvez aussi coller directement un texte anglais ici (sans fichier audio/vidéo) puis cliquer
+            "Traduire ce texte".
+        </p>
     </div>
 
     <div class="card">
         <h2 id="translationTitle" data-step="4">Traduction</h2>
-        <textarea id="frenchText" readonly placeholder="La traduction apparaîtra ici..."></textarea>
+        <textarea id="frenchText" placeholder="La traduction apparaîtra ici... (modifiable)"></textarea>
+        <button id="pasteFrBtn" class="secondary" type="button">📥 Coller</button>
+        <button id="copyFrBtn" class="secondary" disabled>📋 Copier</button>
         <button id="downloadFrBtn" class="secondary" disabled>⬇ Télécharger le texte traduit (.txt)</button>
 
         <div class="voice-block" id="aiVoiceBlock">
@@ -456,6 +481,15 @@
 import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2';
 
 env.allowLocalModels = false;
+
+// Filet de sécurité : aucune erreur ne doit rester silencieuse dans la console
+// sans que l'utilisateur en soit informé dans le journal de l'appli.
+window.addEventListener('unhandledrejection', (event) => {
+    console.error('Erreur non gérée :', event.reason);
+    if (typeof log === 'function') {
+        log(`Erreur inattendue : ${event.reason && event.reason.message ? event.reason.message : event.reason}`, 'err');
+    }
+});
 
 // Rend le site installable (PWA). Sans effet en local (file://) : un service
 // worker ne peut s'enregistrer que via http(s):// ou localhost.
@@ -547,6 +581,7 @@ const synthesizers = {};
 const dropZone = document.getElementById('dropZone');
 const fileInput = document.getElementById('fileInput');
 const fileNameEl = document.getElementById('fileName');
+const removeFileBtn = document.getElementById('removeFileBtn');
 const qualitySelect = document.getElementById('qualitySelect');
 const langSelect = document.getElementById('langSelect');
 const langAvailabilityNote = document.getElementById('langAvailabilityNote');
@@ -558,7 +593,12 @@ const progressFill = document.getElementById('progressFill');
 const logEl = document.getElementById('log');
 const englishTextEl = document.getElementById('englishText');
 const frenchTextEl = document.getElementById('frenchText');
+const pasteEnBtn = document.getElementById('pasteEnBtn');
+const copyEnBtn = document.getElementById('copyEnBtn');
 const downloadEnBtn = document.getElementById('downloadEnBtn');
+const translateTextBtn = document.getElementById('translateTextBtn');
+const pasteFrBtn = document.getElementById('pasteFrBtn');
+const copyFrBtn = document.getElementById('copyFrBtn');
 const downloadFrBtn = document.getElementById('downloadFrBtn');
 const voiceStyleSelect = document.getElementById('voiceStyleSelect');
 const aiVoiceBtn = document.getElementById('aiVoiceBtn');
@@ -665,34 +705,54 @@ function downloadText(text, filename) {
 
 // --- Sélection du fichier ---
 
+const MAX_FILE_SIZE_MB = 300;
+
+function validateFile(file) {
+    if (!file) return "Aucun fichier reçu.";
+    if (file.size === 0) return `Le fichier "${file.name}" est vide (0 octet) — il est probablement corrompu.`;
+    if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
+        return `Le fichier "${file.name}" fait ${(file.size / 1024 / 1024).toFixed(0)} Mo, ce qui dépasse la limite de ${MAX_FILE_SIZE_MB} Mo pour un traitement fiable dans le navigateur.`;
+    }
+    if (!file.type.startsWith('audio/') && !file.type.startsWith('video/')) {
+        return `"${file.name}" ne semble pas être un fichier audio ou vidéo reconnu par votre navigateur.`;
+    }
+    return null;
+}
+
+function handleIncomingFile(file) {
+    if (busy) {
+        log("Une opération est déjà en cours — attendez qu'elle se termine avant de changer de fichier.", 'err');
+        return;
+    }
+    const error = validateFile(file);
+    if (error) {
+        log(error, 'err');
+        return;
+    }
+    selectedFile = file;
+    onFileSelected();
+}
+
 dropZone.addEventListener('click', () => fileInput.click());
 dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
 dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
 dropZone.addEventListener('drop', e => {
     e.preventDefault();
     dropZone.classList.remove('dragover');
-    if (busy) {
-        log("Une opération est déjà en cours — attendez qu'elle se termine avant de changer de fichier.", 'err');
-        return;
-    }
-    if (e.dataTransfer.files.length) {
-        selectedFile = e.dataTransfer.files[0];
-        onFileSelected();
-    }
+    if (e.dataTransfer.files.length) handleIncomingFile(e.dataTransfer.files[0]);
 });
 fileInput.addEventListener('change', () => {
-    if (fileInput.files.length) {
-        selectedFile = fileInput.files[0];
-        onFileSelected();
-    }
+    if (fileInput.files.length) handleIncomingFile(fileInput.files[0]);
+    fileInput.value = ''; // permet de re-sélectionner le même fichier après un "Retirer"
 });
 
 function onFileSelected() {
-    fileNameEl.textContent = `Fichier sélectionné : ${selectedFile.name}`;
+    fileNameEl.textContent = `Fichier sélectionné : ${selectedFile.name} (${(selectedFile.size / 1024 / 1024).toFixed(2)} Mo)`;
     startBtn.disabled = false;
+    removeFileBtn.style.display = 'inline-block';
     resetLog();
     setProgress(0);
-    log(`Fichier prêt : ${selectedFile.name} (${(selectedFile.size / 1024 / 1024).toFixed(2)} Mo)`);
+    log(`Fichier prêt : ${selectedFile.name} (${(selectedFile.size / 1024 / 1024).toFixed(2)} Mo)`, 'ok');
 
     videoDubBlock.style.display = selectedFile.type.startsWith('video/') ? 'block' : 'none';
     dubVideoBtn.disabled = true;
@@ -702,6 +762,28 @@ function onFileSelected() {
     currentDubBlob = null;
     if (currentDubVideoUrl) { URL.revokeObjectURL(currentDubVideoUrl); currentDubVideoUrl = null; }
 }
+
+removeFileBtn.addEventListener('click', () => {
+    if (busy) {
+        log("Une opération est déjà en cours — impossible de retirer le fichier maintenant.", 'err');
+        return;
+    }
+    selectedFile = null;
+    fileInput.value = '';
+    fileNameEl.textContent = '';
+    removeFileBtn.style.display = 'none';
+    startBtn.disabled = true;
+    englishTextEl.value = '';
+    frenchTextEl.value = '';
+    downloadEnBtn.disabled = true;
+    downloadFrBtn.disabled = true;
+    copyEnBtn.disabled = true;
+    copyFrBtn.disabled = true;
+    videoDubBlock.style.display = 'none';
+    setProgress(0);
+    resetLog();
+    log("Fichier retiré. Sélectionnez-en un nouveau pour continuer.");
+});
 
 // --- Extraction / décodage audio ---
 
@@ -805,6 +887,43 @@ function progressLogger(prefix) {
     };
 }
 
+// --- Traduction (réutilisable : appelée par le pipeline complet ET par "Traduire ce texte") ---
+
+async function translateEnglishText(englishText) {
+    const lang = currentLang();
+    if (!translators[lang.bcp47]) {
+        log(`Chargement du modèle de traduction EN→${lang.name} (mis en cache après la 1ère fois)...`);
+        try {
+            translators[lang.bcp47] = await pipeline('translation', lang.translateModel, {
+                progress_callback: progressLogger('Traduction')
+            });
+        } catch (modelErr) {
+            throw new Error(`Le modèle de traduction pour "${lang.name}" n'a pas pu être chargé (${modelErr.message || modelErr}). Cette langue n'est peut-être pas encore disponible gratuitement — essayez-en une autre.`);
+        }
+    }
+    const translator = translators[lang.bcp47];
+    log('Traduction en cours...');
+    const chunks = splitIntoChunks(englishText);
+    let translatedText = '';
+    for (let i = 0; i < chunks.length; i++) {
+        log(`Traduction du segment ${i + 1}/${chunks.length}...`);
+        const result = await translator(chunks[i], { max_new_tokens: 512 });
+        translatedText += (translatedText ? ' ' : '') + result[0].translation_text;
+    }
+    frenchTextEl.value = translatedText;
+    log('Traduction terminée !', 'ok');
+
+    downloadFrBtn.disabled = false;
+    copyFrBtn.disabled = false;
+    speakBtn.disabled = false;
+    if (lang.ttsModel) {
+        aiVoiceBtn.disabled = false;
+        if (selectedFile && selectedFile.type.startsWith('video/')) {
+            oneClickVideoBtn.disabled = false;
+        }
+    }
+}
+
 // --- Pipeline principal : décodage -> transcription -> traduction ---
 
 async function run() {
@@ -815,6 +934,8 @@ async function run() {
     frenchTextEl.value = '';
     downloadEnBtn.disabled = true;
     downloadFrBtn.disabled = true;
+    copyEnBtn.disabled = true;
+    copyFrBtn.disabled = true;
     speakBtn.disabled = true;
     aiVoiceBtn.disabled = true;
     aiDownloadBtn.disabled = true;
@@ -863,40 +984,10 @@ async function run() {
             return;
         }
         downloadEnBtn.disabled = false;
+        copyEnBtn.disabled = false;
 
-        const lang = currentLang();
-        if (!translators[lang.bcp47]) {
-            log(`Chargement du modèle de traduction EN→${lang.name} (mis en cache après la 1ère fois)...`);
-            try {
-                translators[lang.bcp47] = await pipeline('translation', lang.translateModel, {
-                    progress_callback: progressLogger('Traduction')
-                });
-            } catch (modelErr) {
-                throw new Error(`Le modèle de traduction pour "${lang.name}" n'a pas pu être chargé (${modelErr.message || modelErr}). Cette langue n'est peut-être pas encore disponible gratuitement — essayez-en une autre.`);
-            }
-        }
-        const translator = translators[lang.bcp47];
-        setProgress(75);
-        log('Traduction en cours...');
-        const chunks = splitIntoChunks(englishText);
-        let translatedText = '';
-        for (let i = 0; i < chunks.length; i++) {
-            log(`Traduction du segment ${i + 1}/${chunks.length}...`);
-            const result = await translator(chunks[i], { max_new_tokens: 512 });
-            translatedText += (translatedText ? ' ' : '') + result[0].translation_text;
-        }
-        frenchTextEl.value = translatedText;
-        log('Traduction terminée !', 'ok');
+        await translateEnglishText(englishText);
         setProgress(100);
-
-        downloadFrBtn.disabled = false;
-        speakBtn.disabled = false;
-        if (lang.ttsModel) {
-            aiVoiceBtn.disabled = false;
-            if (selectedFile && selectedFile.type.startsWith('video/')) {
-                oneClickVideoBtn.disabled = false;
-            }
-        }
     } catch (err) {
         console.error(err);
         log(`Erreur : ${err.message || err}`, 'err');
@@ -911,6 +1002,61 @@ async function run() {
 startBtn.addEventListener('click', run);
 downloadEnBtn.addEventListener('click', () => downloadText(englishTextEl.value, 'transcription-anglais.txt'));
 downloadFrBtn.addEventListener('click', () => downloadText(frenchTextEl.value, `traduction-${langSelect.value}.txt`));
+
+async function copyToClipboard(text, btn) {
+    if (!text) return;
+    try {
+        await navigator.clipboard.writeText(text);
+        const original = btn.textContent;
+        btn.textContent = '✅ Copié !';
+        setTimeout(() => { btn.textContent = original; }, 1500);
+    } catch (err) {
+        log("Impossible de copier automatiquement (permission navigateur refusée) — sélectionnez le texte manuellement.", 'err');
+    }
+}
+
+async function pasteFromClipboard(textarea) {
+    try {
+        const text = await navigator.clipboard.readText();
+        textarea.value = text;
+        textarea.dispatchEvent(new Event('input'));
+    } catch (err) {
+        log("Impossible de coller automatiquement (le navigateur exige une connexion sécurisée https:// ou localhost pour cette action) — collez avec Ctrl+V / Cmd+V directement dans le champ.", 'err');
+    }
+}
+
+copyEnBtn.addEventListener('click', () => copyToClipboard(englishTextEl.value, copyEnBtn));
+copyFrBtn.addEventListener('click', () => copyToClipboard(frenchTextEl.value, copyFrBtn));
+pasteEnBtn.addEventListener('click', () => pasteFromClipboard(englishTextEl));
+pasteFrBtn.addEventListener('click', () => pasteFromClipboard(frenchTextEl));
+
+englishTextEl.addEventListener('input', () => {
+    const hasText = englishTextEl.value.trim().length > 0;
+    downloadEnBtn.disabled = !hasText;
+    copyEnBtn.disabled = !hasText;
+});
+
+translateTextBtn.addEventListener('click', async () => {
+    const text = englishTextEl.value.trim();
+    if (!text) {
+        log("Collez ou saisissez d'abord un texte anglais à traduire.", 'err');
+        return;
+    }
+    if (!tryStart()) return;
+    translateTextBtn.disabled = true;
+    setProgress(50);
+    try {
+        await translateEnglishText(text);
+        setProgress(100);
+    } catch (err) {
+        console.error(err);
+        log(`Erreur : ${err.message || err}`, 'err');
+        setProgress(0);
+    } finally {
+        translateTextBtn.disabled = false;
+        busy = false;
+    }
+});
 
 // --- Voix IA neuronale (fichier audio réel, téléchargeable) ---
 
