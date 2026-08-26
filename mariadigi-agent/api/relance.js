@@ -79,16 +79,21 @@ module.exports = async (req, res) => {
       const name = customer.first_name || customer.name || '';
       const produit = customer.last_viewed_product || customer.interested_product || '';
 
-      await sendEmail({
-        to: email,
-        subject: stage.subject,
-        html: stage.html(name, produit),
-      });
-
-      results.push({ email, stage: stage.days });
+      if (process.env.RESEND_API_KEY) {
+        await sendEmail({
+          to: email,
+          subject: stage.subject,
+          html: stage.html(name, produit),
+        });
+        results.push({ email, stage: stage.days, envoye: true });
+      } else {
+        // Pas de clé Resend configurée pour l'instant : on détecte et on liste
+        // les relances à faire, sans envoyer l'email (mode "à blanc").
+        results.push({ email, stage: stage.days, envoye: false });
+      }
     }
 
-    res.status(200).json({ ok: true, relances_envoyees: results.length, details: results });
+    res.status(200).json({ ok: true, relances_detectees: results.length, envoi_actif: !!process.env.RESEND_API_KEY, details: results });
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message });
   }
